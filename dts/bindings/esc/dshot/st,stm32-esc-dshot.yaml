@@ -1,0 +1,5 @@
+description: STM32 ESC DShot
+
+compatible: "st,stm32-esc-dshot"
+
+include: base.yaml

@@ -1,0 +1,36 @@
+# Copyright (c) 2024 Arthur Eichelberger
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig ESC_DSHOT
+	bool "DShot ESC drivers"
+	help
+	  This option enables the DShot ESC drivers.
+
+if ESC_DSHOT
+
+config ESC_DSHOT_INIT_PRIORITY
+	int "DShot ESC device drivers init priority"
+	default KERNEL_INIT_PRIORITY_DEVICE
+	help
+	  DShot ESC device drivers init priority.
+
+module = ESC_DSHOT
+module-str = esc_dshot
+source "subsys/logging/Kconfig.template.log_config"
+
+config ESC_DSHOT_SHELL
+	bool "DShot ESC shell"
+	depends on SHELL
+	help
+	  Enable the DShot ESC related shell commands.
+
+config ESC_DSHOT_BIDIR
+    bool "Bidirectional DShot ESC"
+    depends on HAS_ESC_DSHOT_BIDIR
+	help
+	  This option extends the DShot ESC driver API with the ability
+      to receive telemetry from the ESC on the signal line.
+
+rsource "Kconfig.stm32"
+
+endif # ESC_DSHOT

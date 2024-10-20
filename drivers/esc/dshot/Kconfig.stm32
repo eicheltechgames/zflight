@@ -1,0 +1,13 @@
+# Copyright (c) 2024 Arthur Eichelberger
+# SPDX-License-Identifier: Apache-2.0
+
+config ESC_DSHOT_STM32
+	bool "STM32 MCU ESC DShot driver"
+	default y
+	depends on DT_HAS_ST_STM32_ESC_DSHOT_ENABLED
+	select USE_STM32_LL_TIM
+	select USE_STM32_LL_DMA
+	help
+	  This option enables the ESC DShot driver for STM32 family of
+	  processors. Say y if you wish to use DShot port on STM32
+	  MCU.
