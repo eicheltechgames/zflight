@@ -1,0 +1,5 @@
+description: STM32 DShot
+
+compatible: "st,stm32-dshot"
+
+include: base.yaml
