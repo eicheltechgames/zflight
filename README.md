@@ -1,2 +1,2 @@
 # zflight
-Flight controller programs running on Zephyr RTOS
+Flight controller application running on Zephyr RTOS.
