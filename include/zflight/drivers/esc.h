@@ -69,11 +69,14 @@ typedef int (*esc_send_t)(const struct device *dev);
 
 /** @brief ESC driver API definition. */
 __subsystem struct esc_driver_api {
-	esc_get_type_t get_type;
+    esc_get_type_t get_type;
     esc_get_enabled_t get_enabled;
     esc_set_enabled_t set_enabled;
     esc_set_throttle_t set_throttle;
     esc_send_t send;
+#if defined(CONFIG_ESC_DSHOT)
+    void *extended_driver_api;
+#endif
 };
 /** @endcond */
 
@@ -83,10 +86,9 @@ __subsystem struct esc_driver_api {
  */
 static inline enum esc_type esc_get_type(const struct device *dev)
 {
-    const struct esc_driver_api *api =
-		(const struct esc_driver_api *)dev->api;
+    const struct esc_driver_api *api = dev->api;
 
-	return api->get_type(dev);
+    return api->get_type(dev);
 }
 
 /**
@@ -95,10 +97,9 @@ static inline enum esc_type esc_get_type(const struct device *dev)
  */
 static inline bool esc_get_enabled(const struct device *dev)
 {
-    const struct esc_driver_api *api =
-		(const struct esc_driver_api *)dev->api;
+    const struct esc_driver_api *api = dev->api;
 
-	return api->get_enabled(dev);
+    return api->get_enabled(dev);
 }
 
 /**
@@ -107,10 +108,9 @@ static inline bool esc_get_enabled(const struct device *dev)
  */
 static inline int esc_set_enabled(const struct device *dev, bool enabled)
 {
-    const struct esc_driver_api *api =
-		(const struct esc_driver_api *)dev->api;
+    const struct esc_driver_api *api = dev->api;
 
-	return api->set_enabled(dev, enabled);
+    return api->set_enabled(dev, enabled);
 }
 
 /**
@@ -119,10 +119,9 @@ static inline int esc_set_enabled(const struct device *dev, bool enabled)
  */
 static inline int esc_set_throttle(const struct device *dev, uint32_t channel, uint16_t throttle)
 {
-    const struct esc_driver_api *api =
-		(const struct esc_driver_api *)dev->api;
+    const struct esc_driver_api *api = dev->api;
 
-	return api->set_throttle(dev, channel, throttle);
+    return api->set_throttle(dev, channel, throttle);
 }
 
 /**
@@ -131,14 +130,13 @@ static inline int esc_set_throttle(const struct device *dev, uint32_t channel, u
  */
 static inline int esc_send(const struct device *dev)
 {
-    const struct esc_driver_api *api =
-		(const struct esc_driver_api *)dev->api;
+    const struct esc_driver_api *api = dev->api;
 
     if (!api->get_enabled(dev)) {
         return -EACCES;
     }
 
-	return api->send(dev);
+    return api->send(dev);
 }
 
 /**

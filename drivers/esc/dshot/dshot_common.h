@@ -36,6 +36,19 @@ extern "C" {
     (DSHOT_PACKET_TELEM_REQ_BITS << DSHOT_PACKET_TELEM_REQ_OFFSET)
 #define DSHOT_PACKET_CRC_MASK   DSHOT_PACKET_MAX_CRC
 
+enum dshot_telem_type {
+    DSHOT_TELEM_ERPM = 0x0,
+#ifdef CONFIG_DSHOT_EDT
+    DSHOT_TELEM_TEMP = 0x2,
+    DSHOT_TELEM_CURR = 0x4,
+    DSHOT_TELEM_VOLT = 0x6,
+    DSHOT_TELEM_D1 = 0x8,
+    DSHOT_TELEM_D2 = 0xA,
+    DSHOT_TELEM_D3 = 0xC,
+    DSHOT_TELEM_ES = 0xE
+#endif /* CONFIG_DSHOT_EDT */
+};
+
 static inline uint16_t dshot_common_quantize_throttle(uint16_t raw_throttle)
 {
     return (((uint32_t)raw_throttle * DSHOT_PACKET_MAX_DATA)
