@@ -1,0 +1,10 @@
+# SpeedyBee F7V3 board
+
+# Copyright 2024 Arthur Eichelberger
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_SPEEDYBEE_F7V3
+
+# TODO
+
+endif # BOARD_SPEEDYBEE_F7V3

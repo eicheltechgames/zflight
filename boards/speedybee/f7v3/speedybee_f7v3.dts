@@ -1,0 +1,73 @@
+/*
+ * Copyright (c) 2024 Arthur Eichelberger
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+#include <st/f7/stm32f722Xe.dtsi>
+#include <st/f7/stm32f722r(c-e)tx-pinctrl.dtsi>
+
+/ {
+	model = "SpeedyBee F7V3";
+	compatible = "spbe,speedybee_f7v3";
+
+	chosen {
+		zephyr,console = &usart1;
+		zephyr,shell-uart = &usart1;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,dtcm = &dtcm;
+		zephyr,itcm = &itcm;
+		zephyr,code-partition = &slot0_partition;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		blue_led: led_1 {
+			gpios = <&gpioa 14 GPIO_ACTIVE_HIGH>;
+			label = "Blue LED";
+		};
+	};
+
+	aliases {
+		led0 = &blue_led;
+	};
+};
+
+&clk_hse {
+	clock-frequency = <DT_FREQ_M(8)>;
+	status = "okay";
+};
+
+&clk_hsi {
+	status = "disabled";
+};
+
+&clk_lsi {
+	status = "okay";
+};
+
+&pll {
+	div-m = <4>;
+	mul-n = <216>;
+	div-p = <2>;
+	div-q = <9>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&rcc {
+	clocks = <&pll>;
+	clock-frequency = <DT_FREQ_M(216)>;
+	ahb-prescaler = <1>;
+	apb1-prescaler = <4>;
+	apb2-prescaler = <2>;
+};
+
+&usart1 {
+	pinctrl-0 = <&usart1_tx_pa9 &usart1_rx_pa10>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};

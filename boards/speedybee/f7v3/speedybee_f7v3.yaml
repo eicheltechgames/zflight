@@ -1,0 +1,20 @@
+#
+# Copyright 2024 Arthur Eichelberger
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+identifier: speedybee_f7v3
+name: SpeedyBee F7V3
+type: mcu
+arch: arm
+ram: 256
+flash: 512
+toolchain:
+  - zephyr
+  - gnuarmemb
+  - xtools
+supported:
+  - gpio
+  # todo
+vendor: SpeedyBee
