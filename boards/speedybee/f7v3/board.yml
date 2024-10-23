@@ -2,4 +2,4 @@ board:
   name: speedybee_f7v3
   vendor: speedybee
   socs:
-    - name: stm32f722Xe
+    - name: stm32f722xx
