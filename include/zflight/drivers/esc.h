@@ -132,7 +132,7 @@ static inline int esc_send(const struct device *dev)
 {
     const struct esc_driver_api *api = dev->api;
 
-    if (!api->get_enabled(dev)) {
+    if (!esc_get_enabled(dev)) {
         return -EACCES;
     }
 

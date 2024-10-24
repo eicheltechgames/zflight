@@ -153,10 +153,6 @@ static inline enum dshot_type dshot_get_type(struct device *dev)
     const struct esc_driver_api *esc_api = dev->api;
     const struct dshot_driver_api *dshot_api = esc_api->extended_driver_api;
 
-    if (dshot_api == NULL) {
-        return -ENOSYS;
-    }
-
     return dshot_api->get_type(dev);
 }
 
@@ -164,6 +160,10 @@ static inline int dshot_set_type(struct device *dev, enum dshot_type type)
 {
     const struct esc_driver_api *esc_api = dev->api;
     const struct dshot_driver_api *dshot_api = esc_api->extended_driver_api;
+
+    if (dshot_get_enabled(dev)) {
+        return -EACCES;
+    }
 
     return dshot_api->set_type(dev, type);
 }
@@ -178,7 +178,7 @@ static inline bool dshot_set_enabled(struct device *dev, bool enabled)
     return esc_set_enabled(dev, enabled);
 }
 
-static inline enum dshot_mode dshot_get_mode(struct device *dev) const
+static inline enum dshot_mode dshot_get_mode(struct device *dev)
 {
     const struct esc_driver_api *esc_api = dev->api;
     const struct dshot_driver_api *dshot_api = esc_api->extended_driver_api;
@@ -195,6 +195,10 @@ static inline int dshot_set_mode(struct device *dev, enum dshot_mode mode)
 #else
     const struct esc_driver_api *esc_api = dev->api;
     const struct dshot_driver_api *dshot_api = esc_api->extended_driver_api;
+
+    if (dshot_get_enabled(dev)) {
+        return -EACCES;
+    }
 
     return dshot_api->set_mode(dev, mode);
 #endif

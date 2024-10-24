@@ -26,14 +26,8 @@ LOG_MODULE_REGISTER(dshot_stm32, CONFIG_DSHOT_LOG_LEVEL);
 #define IS_TIM_32B_COUNTER_INSTANCE(INSTANCE) (0)
 #endif
 
-/** Maximum number of timer channels : some stm32 soc have 6 else only 4 */
-#if defined(LL_TIM_CHANNEL_CH6)
-#define TIMER_HAS_6CH 1
-#define TIMER_MAX_CH 6u
-#else
-#define TIMER_HAS_6CH 0
+/** Maximum number of timer channels : only 4 supported */
 #define TIMER_MAX_CH 4u
-#endif
 
 /** DShot channel data. */
 struct dshot_stm32_channel_data {
@@ -53,6 +47,7 @@ struct dshot_stm32_data {
 
 /** DShot channel config. */
 struct dshot_stm32_channel_config {
+    const struct pinctrl_dev_config *pcfg;
     bool complementary;
 };
 
@@ -60,7 +55,6 @@ struct dshot_stm32_channel_config {
 struct dshot_stm32_config {
     TIM_TypeDef *timer;
     struct stm32_pclken pclken;
-    const struct pinctrl_dev_config *pcfg;
     struct dshot_stm32_channel_config channel_config[TIMER_MAX_CH];
 };
 
@@ -68,13 +62,10 @@ struct dshot_stm32_config {
 static const uint32_t ch2ll[TIMER_MAX_CH] = {
 	LL_TIM_CHANNEL_CH1, LL_TIM_CHANNEL_CH2,
 	LL_TIM_CHANNEL_CH3, LL_TIM_CHANNEL_CH4,
-#if TIMER_HAS_6CH
-	LL_TIM_CHANNEL_CH5, LL_TIM_CHANNEL_CH6
-#endif
 };
 
 /** Some stm32 mcus have complementary channels : 3 or 4 */
-static const uint32_t ch2ll_n[] = {
+static const uint32_t ch2ll_n[TIMER_MAX_CH] = {
 #if defined(LL_TIM_CHANNEL_CH1N)
 	LL_TIM_CHANNEL_CH1N,
 	LL_TIM_CHANNEL_CH2N,
@@ -82,10 +73,11 @@ static const uint32_t ch2ll_n[] = {
 #if defined(LL_TIM_CHANNEL_CH4N)
 /** stm32g4x and stm32u5x have 4 complementary channels */
 	LL_TIM_CHANNEL_CH4N,
+#else
+    0,
 #endif /* LL_TIM_CHANNEL_CH4N */
 #endif /* LL_TIM_CHANNEL_CH1N */
 };
-/** Maximum number of complemented timer channels is ARRAY_SIZE(ch2ll_n)*/
 
 /**
  * Obtain timer clock speed.
@@ -187,12 +179,12 @@ static int get_tim_clk(const struct stm32_pclken *pclken, uint32_t *tim_clk)
 	return 0;
 }
 
-static enum esc_type dshot_stm32_get_esc_type(const struct device *dev) const
+static enum esc_type dshot_stm32_get_esc_type(const struct device *dev)
 {
     return ESC_TYPE_DSHOT;
 }
 
-static enum dshot_type dshot_stm32_get_type(struct device *dev) const
+static enum dshot_type dshot_stm32_get_type(struct device *dev)
 {
     const struct dshot_stm32_data *data = dev->data;
     return data->type;
@@ -203,46 +195,79 @@ static int dshot_stm32_set_type(struct device *dev, enum dshot_type type)
     return 0;
 }
 
-static enum dshot_mode dshot_stm32_get_mode(struct device *dev) const
+static enum dshot_mode dshot_stm32_get_mode(struct device *dev)
 {
-    const struct dshot_stm32_data *data = dev->data;
+    struct dshot_stm32_data *data = dev->data;
     return data->mode;
 }
 
 static int dshot_stm32_set_mode(struct device *dev, enum dshot_mode mode)
 {
-    if (mode == DSHOT_MODE_NORMAL) {
-        LL_TIM_OC_SetPolarity(cfg->timer, current_ll_channel, get_polarity(flags));
-        
-    } else {
+    const struct dshot_stm32_config *config = dev->config;
 
+    for (int channel = 0; channel < TIMER_MAX_CH; ++channel) {
+        const struct dshot_stm32_channel_config *channel_config = &config->channel_config;
+
+        if (channel_config->pcfg == NULL) {
+            continue;
+        }
+
+        uint32_t ll_channel = channel_config->complementary ?
+            ch2ll[channel - 1u] : ch2ll_n[channel - 1u];
+        uint32_t polarity = mode == DSHOT_MODE_NORMAL ?
+            LL_TIM_OCPOLARITY_HIGH : LL_TIM_OCPOLARITY_LOW;
+
+        // @todo should be able to move this into init
+        if (channel_config->complementary && !ll_channel) {
+            LOG_ERR("Channel %d has NO complementary output", channel);
+            continue;
+        }
+
+        LL_TIM_OC_SetPolarity(config->timer, ll_channel, polarity);
     }
+
     return 0;
 }
 
-static bool dshot_stm32_get_enabled(const struct device *dev) const
+static bool dshot_stm32_get_enabled(const struct device *dev)
 {
-    const struct dshot_stm32_data *data = dev->data;
+    struct dshot_stm32_data *data = dev->data;
     return data->enabled;
 }
 
 static int dshot_stm32_set_enabled(const struct device *dev, bool enabled)
 {
+    const struct dshot_stm32_config *config = dev->config;
+    struct dshot_stm32_data *data = dev->data;
+    if (enabled) {
+        // @todo reset
+    } else {
+        LL_TIM_DisableCounter(config->timer);
+    }
+    data->enabled = enabled;
     return 0;
 }
 
 static int dshot_stm32_set_packet(const struct device *dev, uint32_t channel, uint16_t payload)
 {
+    const struct dshot_stm32_config *config = dev->config;
     struct dshot_stm32_data *data = dev->data;
 
     if (channel < 1u || channel > TIMER_MAX_CH) {
+        LOG_ERR("Channel %d out of bounds", channel);
         return -EINVAL;
     }
     struct dshot_stm32_channel_data *channel_data = &data->channel_data[channel - 1u];
+    const struct dshot_stm32_channel_config *channel_config = &config->channel_config[channel - 1u];
+
+    if (channel_config->pcfg == NULL) {
+        LOG_ERR("Channel %d was not configured", channel);
+        return -EINVAL;
+    }
 
     uint16_t packet = dshot_common_make_packet(payload,
                         channel_data->pending_telem_req,
-                        data->mode == DSHOT_MODE_BIDIRECTIONAL);
+                        dshot_stm32_get_mode(dev) == DSHOT_MODE_BIDIRECTIONAL);
     channel_data->pending_telem_req = false;
 }
 
@@ -258,13 +283,22 @@ static int dshot_stm32_set_command(struct device *dev, uint32_t channel, enum ds
 
 static int dshot_stm32_set_request_telem(struct device *dev, uint32_t channel)
 {
+    const struct dshot_stm32_config *config = dev->config;
     struct dshot_stm32_data *data = dev->data;
 
     if (channel < 1u || channel > TIMER_MAX_CH) {
+        LOG_ERR("Channel %d out of bounds", channel);
         return -EINVAL;
     }
-    const int ch_idx = channel - 1;
-    data->channel_data[ch_idx].pending_telem_req = true;
+    struct dshot_stm32_channel_data *channel_data = &data->channel_data[channel - 1u];
+    const struct dshot_stm32_channel_config *channel_config = &config->channel_config[channel - 1u];
+
+    if (channel_config->pcfg == NULL) {
+        LOG_ERR("Channel %d was not configured", channel);
+        return -EINVAL;
+    }
+    channel_data ->pending_telem_req = true;
+
     return 0;
 }
 
@@ -273,7 +307,7 @@ static int dshot_stm32_send(const struct device *dev)
     return 0;
 }
 
-static bool dshot_stm32_command_in_progress(struct device *dev, uint32_t channel) const
+static bool dshot_stm32_command_in_progress(struct device *dev, uint32_t channel)
 {
     return false;
 }
