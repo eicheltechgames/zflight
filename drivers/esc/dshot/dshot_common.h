@@ -19,10 +19,12 @@
 extern "C" {
 #endif
 
+/** DShot packet structure */
 #define DSHOT_PACKET_DATA_BITS          11
 #define DSHOT_PACKET_TELEM_REQ_BITS     1
 #define DSHOT_PACKET_CRC_BITS           4
 #define DSHOT_PACKET_BITS               16
+#define DSHOT_BIT_RATE(dshot_type)      KHZ(dshot_type)
 
 #define DSHOT_PACKET_MAX_DATA           0x7FF
 #define DSHOT_PACKET_MAX_CRC            0xF
@@ -36,18 +38,75 @@ extern "C" {
     (DSHOT_PACKET_TELEM_REQ_BITS << DSHOT_PACKET_TELEM_REQ_OFFSET)
 #define DSHOT_PACKET_CRC_MASK   DSHOT_PACKET_MAX_CRC
 
-enum dshot_telem_type {
-    DSHOT_TELEM_ERPM = 0x0,
-#ifdef CONFIG_DSHOT_EDT
-    DSHOT_TELEM_TEMP = 0x2,
-    DSHOT_TELEM_CURR = 0x4,
-    DSHOT_TELEM_VOLT = 0x6,
-    DSHOT_TELEM_D1 = 0x8,
-    DSHOT_TELEM_D2 = 0xA,
-    DSHOT_TELEM_D3 = 0xC,
-    DSHOT_TELEM_ES = 0xE
-#endif /* CONFIG_DSHOT_EDT */
+/** Number of timer counts per bit */
+#define DSHOT_TIM_BUF_SIZE      (DSHOT_PACKET_BITS + 1)
+#define DSHOT_TIM_CNTS_PER_BIT  20
+#define DSHOT_TIM_CNTS_0_BIT    7
+#define DSHOT_TIM_CNTS_1_BIT    14
+
+
+
+#define TELEM_PACKET_BITS           21
+#define TELEM_TIM_BUF_SIZE          (TELEM_PACKET_BITS + 1)
+#define TELEM_BIT_RATE(dshot_type)  (5 * DSHOT_BIT_RATE(dshot_type) / 4)
+
+
+
+
+#define DSHOT_CMD_MAX   47
+
+struct dshot_command_settings {
+    uint16_t repeat;
+    uint16_t delay_ms;
 };
+
+static const struct dshot_command_settings command_settings[DSHOT_CMD_MAX] = { 0 };
+command_settings[DSHOT_CMD_MOTOR_STOP] = { 1, 0 };
+command_settings[DSHOT_CMD_MOTOR_STOP] = { 1, 260 };
+command_settings[DSHOT_CMD_BEEP1] = { 1, 260 };
+command_settings[DSHOT_CMD_BEEP2] = { 1, 260 };
+command_settings[DSHOT_CMD_BEEP3] = { 1, 260 };
+command_settings[DSHOT_CMD_BEEP4] = { 1, 260 };
+command_settings[DSHOT_CMD_BEEP5] = { 1, 260 };
+command_settings[DSHOT_CMD_ESC_INFO] = { 1, 12 };
+command_settings[DSHOT_CMD_SPIN_DIRECTION_1] = { 6, 0 };
+command_settings[DSHOT_CMD_SPIN_DIRECTION_2] = { 6, 0 };
+command_settings[DSHOT_CMD_3D_MODE_OFF] = { 6, 0 };
+command_settings[DSHOT_CMD_3D_MODE_ON] = { 6, 0 };
+command_settings[DSHOT_CMD_SETTINGS_REQUEST] = { 1, 0 };
+command_settings[DSHOT_CMD_SAVE_SETTINGS] = { 6, 35 };
+#ifdef CONFIG_DSHOT_EDT
+command_settings[DSHOT_CMD_EXTENDED_TELEMETRY_ENABLE] = { 6, 0 };
+command_settings[DSHOT_CMD_EXTENDED_TELEMETRY_DISABLE] = { 6, 0 };
+#endif
+command_settings[DSHOT_CMD_SPIN_DIRECTION_NORMAL] = { 6, 0 };
+command_settings[DSHOT_CMD_SPIN_DIRECTION_REVERSED] = { 6, 0 };
+command_settings[DSHOT_CMD_LED0_ON] = { 1, 0 };
+command_settings[DSHOT_CMD_LED1_ON] = { 1, 0 };
+command_settings[DSHOT_CMD_LED2_ON] = { 1, 0 };
+command_settings[DSHOT_CMD_LED3_ON] = { 1, 0 };
+command_settings[DSHOT_CMD_LED0_OFF] = { 1, 0 };
+command_settings[DSHOT_CMD_LED1_OFF] = { 1, 0 };
+command_settings[DSHOT_CMD_LED2_OFF] = { 1, 0 };
+command_settings[DSHOT_CMD_LED3_OFF] = { 1, 0 };
+command_settings[DSHOT_CMD_AUDIO_STREAM_MODE_ON_OFF] = { 1, 0 };
+command_settings[DSHOT_CMD_SILENT_MODE_ON_OFF] = { 1, 0 };
+#ifdef CONFIG_DSHOT_BIDIR
+command_settings[DSHOT_CMD_SIGNAL_LINE_TELEMETRY_DISABLE] = { 6, 0 };
+command_settings[DSHOT_CMD_SIGNAL_LINE_TELEMETRY_ENABLE] = { 6, 0 };
+command_settings[DSHOT_CMD_SIGNAL_LINE_CONTINUOUS_ERPM_TELEMETRY] = { 6, 0 };
+command_settings[DSHOT_CMD_SIGNAL_LINE_CONTINUOUS_ERPM_PERIOD_TELEMETRY] = { 6, 0 };
+#ifdef CONFIG_DSHOT_EDT
+command_settings[DSHOT_CMD_SIGNAL_LINE_TEMPERATURE_TELEMETRY] = { 1, 0 };
+command_settings[DSHOT_CMD_SIGNAL_LINE_VOLTAGE_TELEMETRY] = { 1, 0 };
+command_settings[DSHOT_CMD_SIGNAL_LINE_CURRENT_TELEMETRY] = { 1, 0 };
+command_settings[DSHOT_CMD_SIGNAL_LINE_CONSUMPTION_TELEMETRY] = { 1, 0 };
+command_settings[DSHOT_CMD_SIGNAL_LINE_ERPM_TELEMETRY] = { 1, 0 };
+command_settings[DSHOT_CMD_SIGNAL_LINE_ERPM_PERIOD_TELEMETRY] = { 1, 0 };
+#endif /* CONFIG_DSHOT_EDT */
+#endif /* CONFIG_DSHOT_BIDIR */
+
+
 
 static inline uint16_t dshot_common_quantize_throttle(uint16_t raw_throttle)
 {
@@ -59,7 +118,7 @@ static inline uint16_t dshot_common_make_packet(uint16_t payload,
                                                 bool telem_req,
                                                 bool bidir)
 {
-#ifndef CONFIG_ESC_DSHOT_BIDIR
+#ifndef CONFIG_DSHOT_BIDIR
     ARG_UNUSED(bidir);
 #endif
 
@@ -74,7 +133,7 @@ static inline uint16_t dshot_common_make_packet(uint16_t payload,
         csum_data >>= 4;
     }
     // append checksum
-#ifdef CONFIG_ESC_DSHOT_BIDIR
+#ifdef CONFIG_DSHOT_BIDIR
     if (bidir) {
         csum = ~csum;
     }
@@ -83,6 +142,18 @@ static inline uint16_t dshot_common_make_packet(uint16_t payload,
     packet = (packet << DSHOT_PACKET_CRC_BITS) | csum;
 
     return packet;
+}
+
+static inline int dshot_common_load_dshot_buffer(uint16_t *buf, uint16_t packet)
+{
+    int i;
+    for (i = 0; i < DSHOT_PACKET_BITS; i++) {
+        buf[i] = (packet & 0x8000) ? DSHOT_TIM_CNTS_1_BIT : DSHOT_TIM_CNTS_0_BIT;
+        packet <<= 1;
+    }
+    buf[i++] = 0;
+
+    return DSHOT_TIM_BUF_SIZE;
 }
 
 static inline int dshot_common_decode_telem(uint32_t telem_raw,

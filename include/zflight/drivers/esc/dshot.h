@@ -38,8 +38,10 @@ enum dshot_command {
     DSHOT_CMD_3D_MODE_ON,
     DSHOT_CMD_SETTINGS_REQUEST,
     DSHOT_CMD_SAVE_SETTINGS,
-    DSHOT_CMD_EXTENDED_TELEMETRY_ENABLE,
+#ifdef CONFIG_DSHOT_EDT
+    DSHOT_CMD_EXTENDED_TELEMETRY_ENABLE = 13,
     DSHOT_CMD_EXTENDED_TELEMETRY_DISABLE,
+#endif
     DSHOT_CMD_SPIN_DIRECTION_NORMAL = 20,
     DSHOT_CMD_SPIN_DIRECTION_REVERSED,
     DSHOT_CMD_LED0_ON, // BLHeli32 only
@@ -53,7 +55,7 @@ enum dshot_command {
     DSHOT_CMD_AUDIO_STREAM_MODE_ON_OFF, // KISS audio Stream mode on/Off
     DSHOT_CMD_SILENT_MODE_ON_OFF, // KISS silent Mode on/Off
 #ifdef CONFIG_DSHOT_BIDIR
-    DSHOT_CMD_SIGNAL_LINE_TELEMETRY_DISABLE,
+    DSHOT_CMD_SIGNAL_LINE_TELEMETRY_DISABLE = 32,
     DSHOT_CMD_SIGNAL_LINE_TELEMETRY_ENABLE,
     DSHOT_CMD_SIGNAL_LINE_CONTINUOUS_ERPM_TELEMETRY,
     DSHOT_CMD_SIGNAL_LINE_CONTINUOUS_ERPM_PERIOD_TELEMETRY,
@@ -66,20 +68,17 @@ enum dshot_command {
     DSHOT_CMD_SIGNAL_LINE_ERPM_PERIOD_TELEMETRY,
 #endif /* CONFIG_DSHOT_EDT */
 #endif /* CONFIG_DSHOT_BIDIR */
-    DSHOT_CMD_MAX = 47
 };
 
-struct dshot_bidir_telem {
-    uint16_t erpm;
-#ifdef CONFIG_DSHOT_EDT
-    uint16_t temperature;
-    uint16_t current;
-    uint16_t voltage;
-    uint16_t debug_1;
-    uint16_t debug_2;
-    uint16_t debug_3;
-    uint16_t state_event;
-#endif
+enum dshot_telem_type {
+    DSHOT_TELEM_ERPM = 0x0,
+    DSHOT_TELEM_TEMP = 0x2,
+    DSHOT_TELEM_VOLT = 0x4,
+    DSHOT_TELEM_CURR = 0x6,
+    DSHOT_TELEM_DBG1 = 0x8,
+    DSHOT_TELEM_DBG2 = 0xA,
+    DSHOT_TELEM_DBG3 = 0xC,
+    DSHOT_TELEM_STEV = 0xE
 };
 
 /** @cond INTERNAL_HIDDEN */
@@ -111,7 +110,8 @@ typedef int (*dshot_set_mode_t)(const struct device *dev, enum dshot_mode mode);
  * @brief ESC driver API call to set the throttle for a channel.
  * @see esc_set_throttle_direct() for argument description.
  */
-typedef int (*dshot_set_command_t)(const struct device *dev, uint32_t channel, enum dshot_command command);
+typedef int (*dshot_set_command_t)(const struct device *dev, uint32_t channel,
+                enum dshot_command command);
 
 /**
  * @brief ESC driver API call to set the throttle for a channel.
@@ -129,10 +129,12 @@ typedef int (*dshot_set_request_telem_t)(const struct device *dev, uint32_t chan
  * @brief ESC driver API call to send the throttle commands.
  * @see esc_send() for argument description.
  */
-typedef void (*dshot_get_bidir_telem_t)(const struct device *dev, uint32_t channel, struct dshot_bidir_telem *out_telem);
+typedef int (*dshot_decode_telem_t)(const struct device *dev,
+                uint32_t channel, uint16_t *out_telem);
 
 /** @brief ESC driver API definition. */
 __subsystem struct dshot_driver_api {
+    struct esc_driver_api esc;
 	dshot_get_type_t get_type;
     dshot_set_type_t set_type;
     dshot_get_mode_t get_mode;
@@ -143,23 +145,21 @@ __subsystem struct dshot_driver_api {
     dshot_command_in_progress_t command_in_progress;
     dshot_set_request_telem_t set_request_telem;
 #ifdef CONFIG_DSHOT_BIDIR
-    dshot_get_bidir_telem_t get_telem;
+    dshot_decode_telem_t decode_telem;
 #endif
 };
 /** @endcond */
 
 static inline enum dshot_type dshot_get_type(struct device *dev)
 {
-    const struct esc_driver_api *esc_api = dev->api;
-    const struct dshot_driver_api *dshot_api = esc_api->extended_driver_api;
+    const struct dshot_driver_api *dshot_api = dev->api;
 
     return dshot_api->get_type(dev);
 }
 
 static inline int dshot_set_type(struct device *dev, enum dshot_type type)
 {
-    const struct esc_driver_api *esc_api = dev->api;
-    const struct dshot_driver_api *dshot_api = esc_api->extended_driver_api;
+    const struct dshot_driver_api *dshot_api = dev->api;
 
     if (dshot_get_enabled(dev)) {
         return -EACCES;
@@ -180,8 +180,7 @@ static inline bool dshot_set_enabled(struct device *dev, bool enabled)
 
 static inline enum dshot_mode dshot_get_mode(struct device *dev)
 {
-    const struct esc_driver_api *esc_api = dev->api;
-    const struct dshot_driver_api *dshot_api = esc_api->extended_driver_api;
+    const struct dshot_driver_api *dshot_api = dev->api;
 
     return dshot_api->get_mode(dev);
 }
@@ -193,8 +192,7 @@ static inline int dshot_set_mode(struct device *dev, enum dshot_mode mode)
     ARG_UNUSED(mode);
     return -ENOTSUP;
 #else
-    const struct esc_driver_api *esc_api = dev->api;
-    const struct dshot_driver_api *dshot_api = esc_api->extended_driver_api;
+    const struct dshot_driver_api *dshot_api = dev->api;
 
     if (dshot_get_enabled(dev)) {
         return -EACCES;
@@ -211,16 +209,14 @@ static inline int dshot_set_throttle(struct device *dev, uint32_t channel, uint1
 
 static inline int dshot_set_command(struct device *dev, uint32_t channel, enum dshot_command command)
 {
-    const struct esc_driver_api *esc_api = dev->api;
-    const struct dshot_driver_api *dshot_api = esc_api->extended_driver_api;
+    const struct dshot_driver_api *dshot_api = dev->api;
 
     return dshot_api->set_command(dev, channel, command);
 }
 
 static inline int dshot_set_request_telem(struct device *dev, uint32_t channel)
 {
-    const struct esc_driver_api *esc_api = dev->api;
-    const struct dshot_driver_api *dshot_api = esc_api->extended_driver_api;
+    const struct dshot_driver_api *dshot_api = dev->api;
 
     return dshot_api->set_request_telem(dev, channel);
 }
@@ -232,13 +228,12 @@ static inline int dshot_send(struct device *dev)
 
 static inline int dshot_command_in_progress(struct device *dev, uint32_t channel)
 {
-    const struct esc_driver_api *esc_api = dev->api;
-    const struct dshot_driver_api *dshot_api = esc_api->extended_driver_api;
+    const struct dshot_driver_api *dshot_api = dev->api;
 
     return dshot_api->command_in_progress(dev, channel);
 }
 
-static inline void dshot_get_bidir_telem(struct device *dev, uint32_t channel, struct dshot_bidir_telem *out_telem)
+static inline int dshot_decode_telem(struct device *dev, uint32_t channel, struct dshot_bidir_telem *out_telem)
 {
 #ifndef CONFIG_DSHOT_BIDIR
     ARG_UNUSED(dev);
@@ -246,10 +241,9 @@ static inline void dshot_get_bidir_telem(struct device *dev, uint32_t channel, s
     ARG_UNUSED(out_telem);
     return -ENOTSUP;
 #else
-    const struct esc_driver_api *esc_api = dev->api;
-    const struct dshot_driver_api *dshot_api = esc_api->extended_driver_api;
+    const struct dshot_driver_api *dshot_api = dev->api;
 
-    dshot_api->get_telem(dev, channel, out_telem);
+    return dshot_api->decode_telem(dev, channel, out_telem);
 #endif
 }
 

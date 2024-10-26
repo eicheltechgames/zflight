@@ -74,9 +74,6 @@ __subsystem struct esc_driver_api {
     esc_set_enabled_t set_enabled;
     esc_set_throttle_t set_throttle;
     esc_send_t send;
-#if defined(CONFIG_ESC_DSHOT)
-    void *extended_driver_api;
-#endif
 };
 /** @endcond */
 
