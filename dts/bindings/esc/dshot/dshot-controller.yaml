@@ -1,0 +1,19 @@
+# Copyright (c) 2024 Arthur Eichelberger
+# SPDX-License-Identifier: Apache-2.0
+
+# Common fields for DShot controllers
+
+properties:
+  default-type:
+    type: int
+    description: Default speed to set the DShot device
+    default: 300
+      enum:
+       - 150
+       - 300
+       - 600
+
+  "#dshot-cells":
+    type: int
+    required: true
+    description: Number of items to expect in a DShot specifier

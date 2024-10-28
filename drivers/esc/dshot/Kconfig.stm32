@@ -7,8 +7,16 @@ config DSHOT_STM32
 	depends on DT_HAS_ST_STM32_DSHOT_ENABLED
 	select HAS_DSHOT_BIDIR
 	select USE_STM32_LL_TIM
-	select USE_STM32_LL_DMA
+	select DMA
 	help
 	  This option enables the DShot ESC driver for STM32 family of
 	  processors. Say y if you wish to use DShot port on STM32
 	  MCU.
+
+if DSHOT_STM32
+	config DSHOT_STM32_DMA_BURST
+	depends on !DSHOT_BIDIR
+	help
+	  This option enables DMA burst transactions, which reduces the
+	  DMA stream usage but cannot be used with bidirection DShot.
+#endif

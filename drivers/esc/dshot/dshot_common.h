@@ -39,7 +39,7 @@ extern "C" {
 #define DSHOT_PACKET_CRC_MASK   DSHOT_PACKET_MAX_CRC
 
 /** Number of timer counts per bit */
-#define DSHOT_TIM_BUF_SIZE      (DSHOT_PACKET_BITS + 1)
+#define DSHOT_TIM_BUF_SIZE      (DSHOT_PACKET_BITS + 2)
 #define DSHOT_TIM_CNTS_PER_BIT  20
 #define DSHOT_TIM_CNTS_0_BIT    7
 #define DSHOT_TIM_CNTS_1_BIT    14
@@ -47,7 +47,7 @@ extern "C" {
 
 
 #define TELEM_PACKET_BITS           21
-#define TELEM_TIM_BUF_SIZE          (TELEM_PACKET_BITS + 1)
+#define TELEM_TIM_BUF_SIZE          TELEM_PACKET_BITS
 #define TELEM_BIT_RATE(dshot_type)  (5 * DSHOT_BIT_RATE(dshot_type) / 4)
 
 
@@ -144,16 +144,20 @@ static inline uint16_t dshot_common_make_packet(uint16_t payload,
     return packet;
 }
 
-static inline int dshot_common_load_dshot_buffer(uint16_t *buf, uint16_t packet)
+static inline void dshot_common_load_dshot_buffer(uint16_t *buf, unsigned stride, uint16_t packet)
 {
     int i;
     for (i = 0; i < DSHOT_PACKET_BITS; i++) {
-        buf[i] = (packet & 0x8000) ? DSHOT_TIM_CNTS_1_BIT : DSHOT_TIM_CNTS_0_BIT;
+        buf[i * stride] = (packet & 0x8000) ? DSHOT_TIM_CNTS_1_BIT : DSHOT_TIM_CNTS_0_BIT;
         packet <<= 1;
     }
-    buf[i++] = 0;
+    buf[i++ * stride] = 0;
+    buf[i++ * stride] = 0;
+}
 
-    return DSHOT_TIM_BUF_SIZE;
+static inline int dshot_common_unpack_telem_buffer(uint16_t *buf, unsigned stride, uint32_t *telem_raw_out)
+{
+    return -ENOSYS;
 }
 
 static inline int dshot_common_decode_telem(uint32_t telem_raw,

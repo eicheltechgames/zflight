@@ -2,4 +2,60 @@ description: STM32 DShot
 
 compatible: "st,stm32-dshot"
 
-include: base.yaml
+include: [dshot-controller.yaml, pinctrl-device.yaml, base.yaml]
+
+properties:
+  pinctrl-0:
+    required: true
+
+  pinctrl-names:
+    required: true
+
+  dmas:
+    required: true
+
+  dma-names:
+    required: true
+    enum:
+     - "UP"
+     - "CH1"
+     - "CH2"
+     - "CH3"
+     - "CH4"
+
+  use-dma-burst:
+    type: boolean
+    description: Use DMA Burst if CONFIG_DSHOT_STM32_DMA_BURST=y
+
+  "#dshot-cells":
+    const: 1
+    description: |
+      Number of items to expect in a DShot handle
+      - channel of the timer used for DShot
+
+dshot-cells:
+  - channel
+
+child-binding:
+  description: DShot channel
+
+  properties:
+    complementary:
+      type: boolean
+      description: Use the complementary timer channel (ex TIM1_CH1N).
+
+    inverted:
+      type: boolean
+      description: Invert the dshot output.
+
+    status:
+      type: string
+      required: true
+      description: Indicates the operational status of a device.
+      enum:
+        - "okay"
+        - "disabled"
+        - "reserved"
+        - "fail"
+        - "fail-sss"
+    
