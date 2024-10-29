@@ -39,19 +39,18 @@ extern "C" {
 #define DSHOT_PACKET_CRC_MASK   DSHOT_PACKET_MAX_CRC
 
 /** Number of timer counts per bit */
-#define DSHOT_TIM_BUF_SIZE      (DSHOT_PACKET_BITS + 2)
 #define DSHOT_TIM_CNTS_PER_BIT  20
 #define DSHOT_TIM_CNTS_0_BIT    7
 #define DSHOT_TIM_CNTS_1_BIT    14
 
-
-
 #define TELEM_PACKET_BITS           21
-#define TELEM_TIM_BUF_SIZE          TELEM_PACKET_BITS
 #define TELEM_BIT_RATE(dshot_type)  (5 * DSHOT_BIT_RATE(dshot_type) / 4)
 
-
-
+#ifdef CONFIG_DSHOT_BIDIR
+#define DSHOT_TIM_BUF_LEN       TELEM_PACKET_BITS
+#else
+#define DSHOT_TIM_BUF_LEN       (DSHOT_PACKET_BITS + 2)
+#endif
 
 #define DSHOT_CMD_MAX   47
 
@@ -155,7 +154,7 @@ static inline void dshot_common_load_dshot_buffer(uint16_t *buf, unsigned stride
     buf[i++ * stride] = 0;
 }
 
-static inline int dshot_common_unpack_telem_buffer(uint16_t *buf, unsigned stride, uint32_t *telem_raw_out)
+static inline int dshot_common_unpack_telem_buffer(uint16_t *buf, uint32_t *telem_raw_out)
 {
     return -ENOSYS;
 }

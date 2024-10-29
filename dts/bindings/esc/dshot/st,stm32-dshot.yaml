@@ -16,12 +16,6 @@ properties:
 
   dma-names:
     required: true
-    enum:
-     - "UP"
-     - "CH1"
-     - "CH2"
-     - "CH3"
-     - "CH4"
 
   use-dma-burst:
     type: boolean
@@ -30,7 +24,7 @@ properties:
   "#dshot-cells":
     const: 1
     description: |
-      Number of items to expect in a DShot handle
+      Number of items to expect in a DShot phandle
       - channel of the timer used for DShot
 
 dshot-cells:
@@ -40,6 +34,16 @@ child-binding:
   description: DShot channel
 
   properties:
+    channel:
+      type: int
+      required: true
+      description: Channel identifier.
+      enum:
+        - 1
+        - 2
+        - 3
+        - 4
+
     complementary:
       type: boolean
       description: Use the complementary timer channel (ex TIM1_CH1N).
@@ -58,4 +62,3 @@ child-binding:
         - "reserved"
         - "fail"
         - "fail-sss"
-    

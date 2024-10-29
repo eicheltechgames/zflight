@@ -15,8 +15,9 @@ config DSHOT_STM32
 
 if DSHOT_STM32
 	config DSHOT_STM32_DMA_BURST
-	depends on !DSHOT_BIDIR
-	help
-	  This option enables DMA burst transactions, which reduces the
-	  DMA stream usage but cannot be used with bidirection DShot.
-#endif
+		bool "Use STM32 DMA Burst"
+		depends on !DSHOT_BIDIR
+		help
+		  This option enables DMA burst transactions, which reduces the
+		  DMA stream usage but cannot be used with bidirection DShot.
+endif # DSHOT_STM32

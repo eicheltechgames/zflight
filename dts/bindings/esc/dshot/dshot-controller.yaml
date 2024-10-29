@@ -8,10 +8,10 @@ properties:
     type: int
     description: Default speed to set the DShot device
     default: 300
-      enum:
-       - 150
-       - 300
-       - 600
+    enum:
+      - 150
+      - 300
+      - 600
 
   "#dshot-cells":
     type: int

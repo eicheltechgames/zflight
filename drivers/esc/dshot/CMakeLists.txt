@@ -3,6 +3,6 @@
 
 zephyr_library()
 
-zephyr_library_sources_ifdef(CONFIG_ESC_DSHOT_STM32	dshot_stm32.c)
+zephyr_library_sources_ifdef(CONFIG_DSHOT_STM32	dshot_stm32.c)
 
-zephyr_library_sources_ifdef(CONFIG_ESC_DSHOT_SHELL dshot_shell.c)
+zephyr_library_sources_ifdef(CONFIG_DSHOT_SHELL dshot_shell.c)

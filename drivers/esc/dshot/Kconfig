@@ -29,7 +29,7 @@ config DSHOT_BIDIR
     depends on HAS_DSHOT_BIDIR
 	help
 	  This option extends the DShot driver API with the ability
-      to receive telemetry from the ESC on the signal line.
+	  to receive telemetry from the ESC on the signal line.
 
 config DSHOT_EDT
     bool "Extended Bidirectional DShot Telemetry"

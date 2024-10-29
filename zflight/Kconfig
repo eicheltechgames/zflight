@@ -1,0 +1,10 @@
+# Copyright (c) 2024 Arthur Eichelberger
+# SPDX-License-Identifier: Apache-2.0
+
+menu "Zephyr"
+source "Kconfig.zephyr"
+endmenu
+
+module = ZFLIGHT
+module-str = ZFLIGHT
+source "subsys/logging/Kconfig.template.log_config"
