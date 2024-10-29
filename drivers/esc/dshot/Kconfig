@@ -8,15 +8,15 @@ menuconfig DSHOT
 
 if DSHOT
 
+module = DSHOT
+module-str = dshot
+source "subsys/logging/Kconfig.template.log_config"
+
 config DSHOT_INIT_PRIORITY
 	int "DShot ESC device drivers init priority"
 	default KERNEL_INIT_PRIORITY_DEVICE
 	help
 	  DShot ESC device drivers init priority.
-
-module = DSHOT
-module-str = dshot
-source "subsys/logging/Kconfig.template.log_config"
 
 config DSHOT_SHELL
 	bool "DShot shell"

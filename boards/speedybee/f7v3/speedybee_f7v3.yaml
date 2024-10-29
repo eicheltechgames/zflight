@@ -16,5 +16,6 @@ toolchain:
   - xtools
 supported:
   - gpio
-  # todo
+  - uart
+  - dshot
 vendor: SpeedyBee

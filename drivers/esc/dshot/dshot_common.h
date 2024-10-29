@@ -59,51 +59,51 @@ struct dshot_command_settings {
     uint16_t delay_ms;
 };
 
-static const struct dshot_command_settings command_settings[DSHOT_CMD_MAX] = { 0 };
-command_settings[DSHOT_CMD_MOTOR_STOP] = { 1, 0 };
-command_settings[DSHOT_CMD_MOTOR_STOP] = { 1, 260 };
-command_settings[DSHOT_CMD_BEEP1] = { 1, 260 };
-command_settings[DSHOT_CMD_BEEP2] = { 1, 260 };
-command_settings[DSHOT_CMD_BEEP3] = { 1, 260 };
-command_settings[DSHOT_CMD_BEEP4] = { 1, 260 };
-command_settings[DSHOT_CMD_BEEP5] = { 1, 260 };
-command_settings[DSHOT_CMD_ESC_INFO] = { 1, 12 };
-command_settings[DSHOT_CMD_SPIN_DIRECTION_1] = { 6, 0 };
-command_settings[DSHOT_CMD_SPIN_DIRECTION_2] = { 6, 0 };
-command_settings[DSHOT_CMD_3D_MODE_OFF] = { 6, 0 };
-command_settings[DSHOT_CMD_3D_MODE_ON] = { 6, 0 };
-command_settings[DSHOT_CMD_SETTINGS_REQUEST] = { 1, 0 };
-command_settings[DSHOT_CMD_SAVE_SETTINGS] = { 6, 35 };
+static const struct dshot_command_settings command_settings[DSHOT_CMD_MAX] = {
+    [DSHOT_CMD_MOTOR_STOP] = { 1, 0 },
+    [DSHOT_CMD_BEEP1] = { 1, 260 },
+    [DSHOT_CMD_BEEP2] = { 1, 260 },
+    [DSHOT_CMD_BEEP3] = { 1, 260 },
+    [DSHOT_CMD_BEEP4] = { 1, 260 },
+    [DSHOT_CMD_BEEP5] = { 1, 260 },
+    [DSHOT_CMD_ESC_INFO] = { 1, 12 },
+    [DSHOT_CMD_SPIN_DIRECTION_1] = { 6, 0 },
+    [DSHOT_CMD_SPIN_DIRECTION_2] = { 6, 0 },
+    [DSHOT_CMD_3D_MODE_OFF] = { 6, 0 },
+    [DSHOT_CMD_3D_MODE_ON] = { 6, 0 },
+    [DSHOT_CMD_SETTINGS_REQUEST] = { 1, 0 },
+    [DSHOT_CMD_SAVE_SETTINGS] = { 6, 35 },
 #ifdef CONFIG_DSHOT_EDT
-command_settings[DSHOT_CMD_EXTENDED_TELEMETRY_ENABLE] = { 6, 0 };
-command_settings[DSHOT_CMD_EXTENDED_TELEMETRY_DISABLE] = { 6, 0 };
+    [DSHOT_CMD_EXTENDED_TELEMETRY_ENABLE] = { 6, 0 },
+    [DSHOT_CMD_EXTENDED_TELEMETRY_DISABLE] = { 6, 0 },
 #endif
-command_settings[DSHOT_CMD_SPIN_DIRECTION_NORMAL] = { 6, 0 };
-command_settings[DSHOT_CMD_SPIN_DIRECTION_REVERSED] = { 6, 0 };
-command_settings[DSHOT_CMD_LED0_ON] = { 1, 0 };
-command_settings[DSHOT_CMD_LED1_ON] = { 1, 0 };
-command_settings[DSHOT_CMD_LED2_ON] = { 1, 0 };
-command_settings[DSHOT_CMD_LED3_ON] = { 1, 0 };
-command_settings[DSHOT_CMD_LED0_OFF] = { 1, 0 };
-command_settings[DSHOT_CMD_LED1_OFF] = { 1, 0 };
-command_settings[DSHOT_CMD_LED2_OFF] = { 1, 0 };
-command_settings[DSHOT_CMD_LED3_OFF] = { 1, 0 };
-command_settings[DSHOT_CMD_AUDIO_STREAM_MODE_ON_OFF] = { 1, 0 };
-command_settings[DSHOT_CMD_SILENT_MODE_ON_OFF] = { 1, 0 };
+    [DSHOT_CMD_SPIN_DIRECTION_NORMAL] = { 6, 0 },
+    [DSHOT_CMD_SPIN_DIRECTION_REVERSED] = { 6, 0 },
+    [DSHOT_CMD_LED0_ON] = { 1, 0 },
+    [DSHOT_CMD_LED1_ON] = { 1, 0 },
+    [DSHOT_CMD_LED2_ON] = { 1, 0 },
+    [DSHOT_CMD_LED3_ON] = { 1, 0 },
+    [DSHOT_CMD_LED0_OFF] = { 1, 0 },
+    [DSHOT_CMD_LED1_OFF] = { 1, 0 },
+    [DSHOT_CMD_LED2_OFF] = { 1, 0 },
+    [DSHOT_CMD_LED3_OFF] = { 1, 0 },
+    [DSHOT_CMD_AUDIO_STREAM_MODE_ON_OFF] = { 1, 0 },
+    [DSHOT_CMD_SILENT_MODE_ON_OFF] = { 1, 0 },
 #ifdef CONFIG_DSHOT_BIDIR
-command_settings[DSHOT_CMD_SIGNAL_LINE_TELEMETRY_DISABLE] = { 6, 0 };
-command_settings[DSHOT_CMD_SIGNAL_LINE_TELEMETRY_ENABLE] = { 6, 0 };
-command_settings[DSHOT_CMD_SIGNAL_LINE_CONTINUOUS_ERPM_TELEMETRY] = { 6, 0 };
-command_settings[DSHOT_CMD_SIGNAL_LINE_CONTINUOUS_ERPM_PERIOD_TELEMETRY] = { 6, 0 };
+    [DSHOT_CMD_SIGNAL_LINE_TELEMETRY_DISABLE] = { 6, 0 },
+    [DSHOT_CMD_SIGNAL_LINE_TELEMETRY_ENABLE] = { 6, 0 },
+    [DSHOT_CMD_SIGNAL_LINE_CONTINUOUS_ERPM_TELEMETRY] = { 6, 0 },
+    [DSHOT_CMD_SIGNAL_LINE_CONTINUOUS_ERPM_PERIOD_TELEMETRY] = { 6, 0 },
 #ifdef CONFIG_DSHOT_EDT
-command_settings[DSHOT_CMD_SIGNAL_LINE_TEMPERATURE_TELEMETRY] = { 1, 0 };
-command_settings[DSHOT_CMD_SIGNAL_LINE_VOLTAGE_TELEMETRY] = { 1, 0 };
-command_settings[DSHOT_CMD_SIGNAL_LINE_CURRENT_TELEMETRY] = { 1, 0 };
-command_settings[DSHOT_CMD_SIGNAL_LINE_CONSUMPTION_TELEMETRY] = { 1, 0 };
-command_settings[DSHOT_CMD_SIGNAL_LINE_ERPM_TELEMETRY] = { 1, 0 };
-command_settings[DSHOT_CMD_SIGNAL_LINE_ERPM_PERIOD_TELEMETRY] = { 1, 0 };
+    [DSHOT_CMD_SIGNAL_LINE_TEMPERATURE_TELEMETRY] = { 1, 0 },
+    [DSHOT_CMD_SIGNAL_LINE_VOLTAGE_TELEMETRY] = { 1, 0 },
+    [DSHOT_CMD_SIGNAL_LINE_CURRENT_TELEMETRY] = { 1, 0 },
+    [DSHOT_CMD_SIGNAL_LINE_CONSUMPTION_TELEMETRY] = { 1, 0 },
+    [DSHOT_CMD_SIGNAL_LINE_ERPM_TELEMETRY] = { 1, 0 },
+    [DSHOT_CMD_SIGNAL_LINE_ERPM_PERIOD_TELEMETRY] = { 1, 0 },
 #endif /* CONFIG_DSHOT_EDT */
 #endif /* CONFIG_DSHOT_BIDIR */
+ };
 
 
 

@@ -25,3 +25,8 @@ CONFIG_CLOCK_CONTROL=y
 
 # Enable pinctrl
 CONFIG_PINCTRL=y
+
+# Enable cache management
+CONFIG_DCACHE=y
+CONFIG_ICACHE=y
+CONFIG_CACHE_MANAGEMENT=y

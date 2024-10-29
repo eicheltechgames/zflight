@@ -9,6 +9,7 @@
 #include <errno.h>
 
 #include <stm32_ll_tim.h>
+#include <stm32_ll_rcc.h>
 #include <zflight/drivers/esc.h>
 #include <zflight/drivers/esc/dshot.h>
 #include <zephyr/drivers/dma.h>
@@ -28,6 +29,8 @@
 
 #include "dshot_common.h"
 
+#include <zephyr/logging/log.h>
+
 LOG_MODULE_REGISTER(dshot_stm32, CONFIG_DSHOT_LOG_LEVEL);
 
 /* L0 series MCUs only have 16-bit timers and don't have below macro defined */
@@ -46,14 +49,20 @@ LOG_MODULE_REGISTER(dshot_stm32, CONFIG_DSHOT_LOG_LEVEL);
 #define  DSHOT_STM32_MANUAL_CACHE_COHERENCY_REQUIRED	0
 #endif /* defined(CONFIG_DCACHE) && !defined(CONFIG_NOCACHE_MEMORY) */
 
-#define DSHOT_STM32_DMA_TIM_BUF_SIZE        (DSHOT_TIM_BUF_SIZE * sizeof(uint32_t))
-#define DSHOT_STM32_DMA_BURST_TIM_BUF_LEN   (DSHOT_TIM_BUF_SIZE * TIMER_MAX_CH)
+#define DSHOT_STM32_DMA_TIM_BUF_SIZE        (DSHOT_TIM_BUF_LEN * sizeof(uint32_t))
+#define DSHOT_STM32_DMA_BURST_TIM_BUF_LEN   (DSHOT_TIM_BUF_LEN * TIMER_MAX_CH)
 #define DSHOT_STM32_DMA_BURST_TIM_BUF_SIZE  (DSHOT_STM32_DMA_BURST_TIM_BUF_LEN * sizeof(uint32_t))
 
 static enum dshot_stm32_dir {
     INPUT_DIR = 0b01,
     OUTPUT_DIR = 0b10,
     ANY_DIR = 0b11,
+};
+
+struct dshot_active_command {
+    enum dshot_command command;
+    uint16_t repeat;
+    uint16_t delay_ms;
 };
 
 /** DShot DMA */
@@ -70,7 +79,7 @@ struct dshot_stm32_channel_data {
     LL_TIM_OC_InitTypeDef oc_init;
 #endif
     bool pending_telem_req;
-    struct dshot_command_settings cmd_status;
+    struct dshot_active_command active_cmd;
     struct dshot_stm32_dma dma;
     uint32_t *tim_buf;
 };
@@ -576,7 +585,7 @@ static int dshot_stm32_set_packet(const struct device *dev, uint32_t channel, ui
 
 static int dshot_stm32_set_throttle(const struct device *dev, uint32_t channel, uint16_t throttle)
 {
-    static const struct dshot_command_settings reset = { 0 };
+    static const struct dshot_active_command reset = { 0 };
 
     int err = dshot_stm32_set_packet(dev, channel, dshot_common_quantize_throttle(throttle));
 
@@ -584,7 +593,7 @@ static int dshot_stm32_set_throttle(const struct device *dev, uint32_t channel, 
         // ch_data validated in dshot_stm32_set_packet
         struct dshot_stm32_data *data = dev->data;
         struct dshot_stm32_channel_data *ch_data = &data->channels[channel - 1u];
-        ch_data->cmd_status = reset;
+        ch_data->active_cmd = reset;
     }
     return err;
 }
@@ -597,7 +606,12 @@ static int dshot_stm32_set_command(const struct device *dev, uint32_t channel, e
         // ch_data validated in dshot_stm32_set_packet
         struct dshot_stm32_data *data = dev->data;
         struct dshot_stm32_channel_data *ch_data = &data->channels[channel - 1u];
-        ch_data->cmd_status = command_settings[command];
+        struct dshot_active_command new_cmd = {
+            .command = command,
+            .repeat = command_settings[command].repeat,
+            .delay_ms = command_settings[command].delay_ms,
+        };
+        ch_data->active_cmd = new_cmd;
     }
     return err;
 }
@@ -636,16 +650,17 @@ static int dshot_stm32_send(const struct device *dev)
             continue;
         }
 
-        if (ch_data->cmd_status.repeat > 0) {
-            ch_data->cmd_status.repeat--;
-        } else if (ch_data->cmd_status.delay_ms > 0) {
-            int32_t delta = ch_data->cmd_status.delay_ms
+        if (ch_data->active_cmd.repeat > 0) {
+            ch_data->active_cmd.repeat--;
+        } else if (ch_data->active_cmd.delay_ms > 0) {
+            int32_t delta = ch_data->active_cmd.delay_ms
                 - (curr_timestamp - data->last_send_timestamp);
-            ch_data->cmd_status.delay_ms = MAX(delta, 0);
+            ch_data->active_cmd.delay_ms = MAX(delta, 0);
             // disable the channel so other channels can still operate
             LL_TIM_CC_DisableChannel(cfg->timer, ch_cfg->ll_channel);
         } else {
             // re-enable the channel if it was disabled for a command
+            ch_data->active_cmd.command = 0;
             LL_TIM_CC_EnableChannel(cfg->timer, ch_cfg->ll_channel);
         }
 
@@ -676,7 +691,7 @@ static int dshot_stm32_send(const struct device *dev)
     return 0;
 }
 
-static bool dshot_stm32_command_in_progress(const struct device *dev, uint32_t channel)
+static int dshot_stm32_command_in_progress(const struct device *dev, uint32_t channel)
 {
     struct dshot_stm32_data *data = dev->data;
     struct dshot_stm32_channel_data *ch_data;
@@ -685,9 +700,10 @@ static bool dshot_stm32_command_in_progress(const struct device *dev, uint32_t c
         return err;
     }
 
-    return ch_data->cmd_status.repeat > 0 || ch_data->cmd_status.delay_ms > 0;
+    return ch_data->active_cmd.command;
 }
 
+#ifdef CONFIG_DSHOT_BIDIR
 static int dshot_stm32_stop_receive(const struct device *dev)
 {
     const struct dshot_stm32_config *cfg = dev->config;
@@ -746,6 +762,7 @@ static int dshot_stm32_decode_telem(const struct device *dev, uint32_t channel,
 
     return dshot_common_decode_telem(telem_raw, out_type, out_value);
 }
+#endif
 
 static const struct dshot_driver_api dshot_stm32_driver_api = {
     .esc.get_type = dshot_stm32_get_esc_type,
@@ -910,6 +927,20 @@ static int dshot_stm32_init(const struct device *dev)
     return 0;
 }
 
+#define DSHOT_CHANNELS  0, 1, 2, 3
+#define GET_DSHOT_CH(N) GET_ARG_N(N, DSHOT_CHANNELS)
+
+#define LL_TIM_CH           LL_TIM_CHANNEL_CH1, LL_TIM_CHANNEL_CH2,\
+                            LL_TIM_CHANNEL_CH3, LL_TIM_CHANNEL_CH4
+#define GET_LL_TIM_CH(N)    GET_ARG_N(N, LL_TIM_CH)
+
+#define LL_TIM_CHN          LL_TIM_CHANNEL_CH1N, LL_TIM_CHANNEL_CH2N,\
+                            LL_TIM_CHANNEL_CH3N, LL_TIM_CHANNEL_CH4N
+#define GET_LL_TIM_CHN(N)   GET_ARG_N(N, LL_TIM_CHN)
+
+#define DMA_CH          ch1, ch2, ch3, ch4
+#define GET_DMA_CH(N)   GET_ARG_N(N, DMA_CH)
+
 #define TIM(index) DT_INST_PARENT(index)
 
 #define DT_INST_CLK(index, inst)                \
@@ -921,17 +952,17 @@ static int dshot_stm32_init(const struct device *dev)
 #ifdef CONFIG_DSHOT_BIDR
 #define DSHOT_DMA_CB_INIT   dshot_stm32_dma_cb
 
-#define DSHOT_DATA_BIDIR(index) \
-    .ic_init = { 0 },           \
-    .curr_dir = DIR_OUTPUT,     \
+#define DSHOT_DATA_BIDIR    \
+    .ic_init = { 0 },       \
+    .curr_dir = DIR_OUTPUT, \
 
-#define DSHOT_CH_DATA_BIDIR(index, ch)  \
-    .oc_init = { 0 },                   \
+#define DSHOT_CH_DATA_BIDIR \
+    .oc_init = { 0 },       \
 
 #else
 #define DSHOT_DMA_CB_INIT   NULL
-#define DSHOT_DATA_BIDIR(index)
-#define DSHOT_CH_DATA_BIDIR(index, ch)
+#define DSHOT_DATA_BIDIR
+#define DSHOT_CH_DATA_BIDIR
 #endif
 
 #define DSHOT_DMA_CHANNEL_INIT(index, ch)	                            \
@@ -985,73 +1016,74 @@ static int dshot_stm32_init(const struct device *dev)
 #define DSHOT_CONFIG_DMA_BURST(index)
 #endif
 
-#define DSHOT_CH_REFS(index, type)                                          \
-    {                                                                       \
-        COND_CODE_1(DT_NODE_HAS_STATUS(DT_INST_CHILD(index, ch1), okay),    \
-            &dshot_stm32_##type##_##index##_1, NULL),                       \
-        COND_CODE_1(DT_NODE_HAS_STATUS(DT_INST_CHILD(index, ch2), okay),    \
-            &dshot_stm32_##type##_##index##_2, NULL),                       \
-        COND_CODE_1(DT_NODE_HAS_STATUS(DT_INST_CHILD(index, ch3), okay),    \
-            &dshot_stm32_##type##_##index##_3, NULL),                       \
-        COND_CODE_1(DT_NODE_HAS_STATUS(DT_INST_CHILD(index, ch4), okay),    \
-            &dshot_stm32_##type##_##index##_4, NULL),                       \
-    }                                                                       \
+#define DSHOT_CH_REF(node, index, type)                                 \
+    [GET_DSHOT_CH(DT_PROP(node, channel))] =                            \
+        &(dshot_stm32_ch_##type##_##index[DT_NODE_CHILD_IDX(node)]),    \
 
-#define DSHOT_CH_INIT(index, node, ch)                                      \
-                                                                            \
-    static __aligned(32) uint32_t                                           \
-        dshot_tim_buf_##index##_##ch##[DSHOT_TIM_BUF_SIZE]                  \
-        = { 0 } __nocache;                                                  \
-                                                                            \
-    static struct dshot_stm32_channel_data                                  \
-        dshot_stm32_data_##index##_##ch = {                                 \
-        DSHOT_CH_DATA_BIDIR(index, ch)                                      \
-        .pending_telem_req = false,                                         \
-        .cmd_status = { 0 },                                                \
-        .dma = DSHOT_DMA_CHANNEL_INIT(index, CH##ch),                       \
-        .tim_buf = &dshot_tim_buf_##index##_##ch,                           \
-    };                                                                      \
-                                                                            \
-    static const struct dshot_stm32_channel_config                          \
-        dshot_stm32_config_##index##_##ch = {                               \
-        .ll_channel = COND_CODE_1(DT_PROP(node, complementary),             \
-            LL_TIM_CHANNEL_CH##ch##N, LL_TIM_CHANNEL_CH##ch),               \
-        .inverted = DT_PROP(node, inverted),                                \
-    };                                                                      \
+#define DSHOT_CH_DATA_INIT(node, index)                                             \
+    {                                                                               \
+        DSHOT_CH_DATA_BIDIR                                                         \
+        .pending_telem_req = false,                                                 \
+        .active_cmd = { 0, 0, 0 },                                                  \
+        .dma = DSHOT_DMA_CHANNEL_INIT(index, GET_DMA_CH(DT_PROP(node, channel))),   \
+        .tim_buf = &dshot_tim_bufs_##index[DT_NODE_CHILD_IDX(node)],                \
+    },                                                                              \
 
-#define DSHOT_CH_INIT_PRE(node, index)                  \
-    DSHOT_CH_INIT(index, node, DT_PROP(node, channel))  \
+#define DSHOT_CH_CONFIG_INIT(node)                                                          \
+    {                                                                                       \
+        .ll_channel = COND_CODE_1(DT_PROP(node, complementary),                             \
+            GET_LL_TIM_CHN(DT_PROP(node, channel)), GET_LL_TIM_CH(DT_PROP(node, channel))), \
+        .inverted = DT_PROP(node, inverted),                                                \
+    },                                                                                      \
 
-#define DSHOT_DEVICE_INIT(index)                                                \
-                                                                                \
-    DT_INST_FOREACH_CHILD_STATUS_OKAY_VARGS(index, DSHOT_CH_INIT_PRE, index)    \
-                                                                                \
-    DSHOT_DMA_BURST_INIT(index)                                                 \
-                                                                                \
-    static struct dshot_stm32_data dshot_stm32_data_##index = {                 \
-        DSHOT_DATA_BIDIR(index)                                                 \
-        .enabled = false,                                                       \
-        .last_send_timestamp = 0,                                               \
-        DSHOT_DATA_DMA_BURST(index)                                             \
-        .channels = DSHOT_CH_REFS(index, data),                                 \
-    };								                                            \
-                                                                                \
-    PINCTRL_DT_INST_DEFINE(index);					                            \
-                                                                                \
-    static const struct dshot_stm32_config dshot_stm32_config_##index = {       \
-        .timer = (TIM_TypeDef *)DT_REG_ADDR(TIM(index)),	                    \
-        .pclken = DT_INST_CLK(index, timer),                                    \
-        .reset = RESET_DT_SPEC_GET(TIM(index)),			                        \
-        .pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(index),		                    \
-        .default_type = DT_INST_PROP(index, default_type),                      \
-        DSHOT_CONFIG_DMA_BURST(index)                                           \
-        .channels = DSHOT_CH_REFS(index, config),                               \
-    };                                                                          \
-                                                                                \
-    DEVICE_DT_INST_DEFINE(index, &dshot_stm32_init, NULL,                       \
-                &dshot_stm32_data_##index,                                      \
-                &dshot_stm32_config_##index, PRE_KERNEL_2,                      \
-                CONFIG_DSHOT_INIT_PRIORITY,                                     \
-                &dshot_stm32_driver_api);                                       \
+int test = DT_NODE_CHILD_IDX(DT_N_S_soc_S_timers_40000400_S_dshot_S_ch1);
+
+#define DSHOT_CH_INIT(index)                                                                \
+    static __aligned(32) uint32_t                                                           \
+        dshot_tim_bufs_##index[DT_INST_CHILD_NUM_STATUS_OKAY(index)][DSHOT_TIM_BUF_LEN];    \
+                                                                                            \
+    static struct dshot_stm32_channel_data dshot_stm32_ch_data_##index[] = {                \
+        DT_INST_FOREACH_CHILD_STATUS_OKAY_VARGS(index, DSHOT_CH_DATA_INIT, index)           \
+    };                                                                                      \
+                                                                                            \
+    static const struct dshot_stm32_channel_config dshot_stm32_ch_config_##index[] = {      \
+        DT_INST_FOREACH_CHILD_STATUS_OKAY(index, DSHOT_CH_CONFIG_INIT)                      \
+    };                                                                                      \
+
+#define DSHOT_DEVICE_INIT(index)                                                        \
+                                                                                        \
+    DSHOT_CH_INIT(index)                                                                \
+                                                                                        \
+    DSHOT_DMA_BURST_INIT(index)                                                         \
+                                                                                        \
+    static struct dshot_stm32_data dshot_stm32_data_##index = {                         \
+        DSHOT_DATA_BIDIR                                                                \
+        .enabled = false,                                                               \
+        .last_send_timestamp = 0,                                                       \
+        DSHOT_DATA_DMA_BURST(index)                                                     \
+        .channels = {                                                     \
+            DT_INST_FOREACH_CHILD_STATUS_OKAY_VARGS(index, DSHOT_CH_REF, index, data)   \
+        },                                                                              \
+    };								                                                    \
+                                                                                        \
+    PINCTRL_DT_INST_DEFINE(index);					                                    \
+                                                                                        \
+    static const struct dshot_stm32_config dshot_stm32_config_##index = {               \
+        .timer = (TIM_TypeDef *)DT_REG_ADDR(TIM(index)),	                            \
+        .pclken = DT_INST_CLK(index, timer),                                            \
+        .reset = RESET_DT_SPEC_GET(TIM(index)),			                                \
+        .pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(index),		                            \
+        .default_type = DT_INST_PROP(index, default_type),                              \
+        DSHOT_CONFIG_DMA_BURST(index)                                                   \
+        .channels = {                                                     \
+            DT_INST_FOREACH_CHILD_STATUS_OKAY_VARGS(index, DSHOT_CH_REF, index, config) \
+        },                                                                              \
+    };                                                                                  \
+                                                                                        \
+    DEVICE_DT_INST_DEFINE(index, &dshot_stm32_init, NULL,                               \
+                &dshot_stm32_data_##index,                                              \
+                &dshot_stm32_config_##index, PRE_KERNEL_2,                              \
+                CONFIG_DSHOT_INIT_PRIORITY,                                             \
+                &dshot_stm32_driver_api);                                               \
 
 DT_INST_FOREACH_STATUS_OKAY(DSHOT_DEVICE_INIT)

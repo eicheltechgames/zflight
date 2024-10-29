@@ -129,8 +129,8 @@ typedef int (*dshot_set_request_telem_t)(const struct device *dev, uint32_t chan
  * @brief ESC driver API call to send the throttle commands.
  * @see esc_send() for argument description.
  */
-typedef int (*dshot_decode_telem_t)(const struct device *dev,
-                uint32_t channel, uint16_t *out_telem);
+typedef int (*dshot_decode_telem_t)(const struct device *dev, uint32_t channel,
+                enum dshot_telem_type *out_type, uint16_t *out_value);
 
 /** @brief ESC driver API definition. */
 __subsystem struct dshot_driver_api {
@@ -150,6 +150,16 @@ __subsystem struct dshot_driver_api {
 };
 /** @endcond */
 
+static inline bool dshot_get_enabled(struct device *dev)
+{
+    return esc_get_enabled(dev);
+}
+
+static inline bool dshot_set_enabled(struct device *dev, bool enabled)
+{
+    return esc_set_enabled(dev, enabled);
+}
+
 static inline enum dshot_type dshot_get_type(struct device *dev)
 {
     const struct dshot_driver_api *dshot_api = dev->api;
@@ -166,16 +176,6 @@ static inline int dshot_set_type(struct device *dev, enum dshot_type type)
     }
 
     return dshot_api->set_type(dev, type);
-}
-
-static inline bool dshot_get_enabled(struct device *dev)
-{
-    return esc_get_enabled(dev);
-}
-
-static inline bool dshot_set_enabled(struct device *dev, bool enabled)
-{
-    return esc_set_enabled(dev, enabled);
 }
 
 static inline enum dshot_mode dshot_get_mode(struct device *dev)
@@ -233,12 +233,14 @@ static inline int dshot_command_in_progress(struct device *dev, uint32_t channel
     return dshot_api->command_in_progress(dev, channel);
 }
 
-static inline int dshot_decode_telem(struct device *dev, uint32_t channel, struct dshot_bidir_telem *out_telem)
+static inline int dshot_decode_telem(const struct device *dev, uint32_t channel,
+                                enum dshot_telem_type *out_type, uint16_t *out_value)
 {
 #ifndef CONFIG_DSHOT_BIDIR
     ARG_UNUSED(dev);
     ARG_UNUSED(channel);
-    ARG_UNUSED(out_telem);
+    ARG_UNUSED(out_type);
+    ARG_UNUSED(out_value);
     return -ENOTSUP;
 #else
     const struct dshot_driver_api *dshot_api = dev->api;

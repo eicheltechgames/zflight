@@ -7,6 +7,8 @@ config DSHOT_STM32
 	depends on DT_HAS_ST_STM32_DSHOT_ENABLED
 	select HAS_DSHOT_BIDIR
 	select USE_STM32_LL_TIM
+	select USE_STM32_LL_RCC if SOC_SERIES_STM32F4X || SOC_SERIES_STM32F7X || SOC_SERIES_STM32H7X
+	select RESET
 	select DMA
 	help
 	  This option enables the DShot ESC driver for STM32 family of
