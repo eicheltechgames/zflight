@@ -143,7 +143,7 @@ static inline uint16_t dshot_common_make_packet(uint16_t payload,
     return packet;
 }
 
-static inline void dshot_common_load_dshot_buffer(uint16_t *buf, unsigned stride, uint16_t packet)
+static inline void dshot_common_load_dshot_buffer(uint32_t *buf, unsigned stride, uint16_t packet)
 {
     int i;
     for (i = 0; i < DSHOT_PACKET_BITS; i++) {
@@ -154,7 +154,7 @@ static inline void dshot_common_load_dshot_buffer(uint16_t *buf, unsigned stride
     buf[i++ * stride] = 0;
 }
 
-static inline int dshot_common_unpack_telem_buffer(uint16_t *buf, uint32_t *telem_raw_out)
+static inline int dshot_common_unpack_telem_buffer(uint32_t *buf, uint32_t *telem_raw_out)
 {
     return -ENOSYS;
 }

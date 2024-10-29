@@ -53,7 +53,7 @@ LOG_MODULE_REGISTER(dshot_stm32, CONFIG_DSHOT_LOG_LEVEL);
 #define DSHOT_STM32_DMA_BURST_TIM_BUF_LEN   (DSHOT_TIM_BUF_LEN * TIMER_MAX_CH)
 #define DSHOT_STM32_DMA_BURST_TIM_BUF_SIZE  (DSHOT_STM32_DMA_BURST_TIM_BUF_LEN * sizeof(uint32_t))
 
-static enum dshot_stm32_dir {
+enum dshot_stm32_dir {
     INPUT_DIR = 0b01,
     OUTPUT_DIR = 0b10,
     ANY_DIR = 0b11,
@@ -154,13 +154,13 @@ static inline uint32_t positive_channel(uint32_t ll_channel)
 }
 
 /* Function mapping: ch_idx to LL_TIM_EnableDMAReq_CCx */
-static uint32_t __maybe_unused (*const LL_TIM_EnableDMAReq_CC[])(const TIM_TypeDef *) = {
+static void __maybe_unused (*const LL_TIM_EnableDMAReq_CC[])(TIM_TypeDef *) = {
     LL_TIM_EnableDMAReq_CC1, LL_TIM_EnableDMAReq_CC2,
     LL_TIM_EnableDMAReq_CC3, LL_TIM_EnableDMAReq_CC4,
 };
 
 /* Function mapping: ch_idx to LL_TIM_EnableDMAReq_CCx */
-static uint32_t __maybe_unused (*const LL_TIM_DisableDMAReq_CC[])(const TIM_TypeDef *) = {
+static void __maybe_unused (*const LL_TIM_DisableDMAReq_CC[])(TIM_TypeDef *) = {
     LL_TIM_DisableDMAReq_CC1, LL_TIM_DisableDMAReq_CC2,
     LL_TIM_DisableDMAReq_CC3, LL_TIM_DisableDMAReq_CC4,
 };
@@ -552,7 +552,6 @@ static int dshot_stm32_set_enabled(const struct device *dev, bool enabled)
 
 static int dshot_stm32_set_packet(const struct device *dev, uint32_t channel, uint16_t payload)
 {
-    const struct dshot_stm32_config *cfg = dev->config;
     struct dshot_stm32_data *data = dev->data;
     struct dshot_stm32_channel_data *ch_data;
     int err;
@@ -592,7 +591,7 @@ static int dshot_stm32_set_throttle(const struct device *dev, uint32_t channel, 
     if (!err) {
         // ch_data validated in dshot_stm32_set_packet
         struct dshot_stm32_data *data = dev->data;
-        struct dshot_stm32_channel_data *ch_data = &data->channels[channel - 1u];
+        struct dshot_stm32_channel_data *ch_data = data->channels[channel - 1u];
         ch_data->active_cmd = reset;
     }
     return err;
@@ -605,7 +604,7 @@ static int dshot_stm32_set_command(const struct device *dev, uint32_t channel, e
     if (!err) {
         // ch_data validated in dshot_stm32_set_packet
         struct dshot_stm32_data *data = dev->data;
-        struct dshot_stm32_channel_data *ch_data = &data->channels[channel - 1u];
+        struct dshot_stm32_channel_data *ch_data = data->channels[channel - 1u];
         struct dshot_active_command new_cmd = {
             .command = command,
             .repeat = command_settings[command].repeat,
@@ -906,7 +905,7 @@ static int dshot_stm32_init(const struct device *dev)
         /* configure dma */
         struct dshot_stm32_dma *dma = &ch_data->dma;
         dma->config.head_block = &dma->block;
-        dma->config.user_data = dev;
+        dma->config.user_data = (void *)dev;
         dma->block.source_address = (uint32_t)&ch_data->tim_buf[0]; //@todo uintptr_t?
         dma->block.dest_address = (uint32_t)(&cfg->timer->CCR1 + ch_idx);
         dma->block.block_size = DSHOT_STM32_DMA_TIM_BUF_SIZE;
@@ -916,7 +915,7 @@ static int dshot_stm32_init(const struct device *dev)
     /* configure dma burst */
     struct dshot_stm32_dma *burst_dma = &data->burst_dma;
     burst_dma->config.head_block = &burst_dma->block;
-    burst_dma->config.user_data = dev;
+    burst_dma->config.user_data = (void *)dev;
     burst_dma->block.source_address = (uint32_t)&data->burst_tim_buf[0]; //@todo uintptr_t?
     burst_dma->block.dest_address = (uint32_t)&cfg->timer->DMAR;
     burst_dma->block.block_size = DSHOT_STM32_DMA_BURST_TIM_BUF_SIZE;
@@ -1000,12 +999,12 @@ static int dshot_stm32_init(const struct device *dev)
 #ifdef DSHOT_STM32_DMA_BURST
 #define DSHOT_DMA_BURST_INIT(index)                                         \
     static __aligned(32) uint32_t                                           \
-        dshot_burst_tim_buf_##index##[DSHOT_STM32_DMA_BURST_TIM_BUF_LEN]   \
+        dshot_burst_tim_buf_##index##[DSHOT_STM32_DMA_BURST_TIM_BUF_LEN]    \
         = { 0 } __nocache;                                                  \
 
-#define DSHOT_DATA_DMA_BURST(index)                         \
-    .burst_dma = DSHOT_DMA_CHANNEL_INIT(index, UP),         \
-    .burst_tim_buf = &dshot_burst_tim_buf_##index,    \
+#define DSHOT_DATA_DMA_BURST(index)                     \
+    .burst_dma = DSHOT_DMA_CHANNEL_INIT(index, UP),     \
+    .burst_tim_buf = &dshot_burst_tim_buf_##index[0],   \
 
 #define DSHOT_CONFIG_DMA_BURST(index)                       \
     .use_dma_burst = DT_INST_PROP(index, use_dma_burst),    \
@@ -1016,9 +1015,9 @@ static int dshot_stm32_init(const struct device *dev)
 #define DSHOT_CONFIG_DMA_BURST(index)
 #endif
 
-#define DSHOT_CH_REF(node, index, type)                                 \
-    [GET_DSHOT_CH(DT_PROP(node, channel))] =                            \
-        &(dshot_stm32_ch_##type##_##index[DT_NODE_CHILD_IDX(node)]),    \
+#define DSHOT_CH_REF(node, index, type)                             \
+    [GET_DSHOT_CH(DT_PROP(node, channel))] =                        \
+        &dshot_stm32_ch_##type##_##index[DT_NODE_CHILD_IDX(node)],  \
 
 #define DSHOT_CH_DATA_INIT(node, index)                                             \
     {                                                                               \
@@ -1026,7 +1025,7 @@ static int dshot_stm32_init(const struct device *dev)
         .pending_telem_req = false,                                                 \
         .active_cmd = { 0, 0, 0 },                                                  \
         .dma = DSHOT_DMA_CHANNEL_INIT(index, GET_DMA_CH(DT_PROP(node, channel))),   \
-        .tim_buf = &dshot_tim_bufs_##index[DT_NODE_CHILD_IDX(node)],                \
+        .tim_buf = &dshot_tim_bufs_##index[DT_NODE_CHILD_IDX(node)][0],             \
     },                                                                              \
 
 #define DSHOT_CH_CONFIG_INIT(node)                                                          \
@@ -1035,8 +1034,6 @@ static int dshot_stm32_init(const struct device *dev)
             GET_LL_TIM_CHN(DT_PROP(node, channel)), GET_LL_TIM_CH(DT_PROP(node, channel))), \
         .inverted = DT_PROP(node, inverted),                                                \
     },                                                                                      \
-
-int test = DT_NODE_CHILD_IDX(DT_N_S_soc_S_timers_40000400_S_dshot_S_ch1);
 
 #define DSHOT_CH_INIT(index)                                                                \
     static __aligned(32) uint32_t                                                           \
@@ -1061,7 +1058,7 @@ int test = DT_NODE_CHILD_IDX(DT_N_S_soc_S_timers_40000400_S_dshot_S_ch1);
         .enabled = false,                                                               \
         .last_send_timestamp = 0,                                                       \
         DSHOT_DATA_DMA_BURST(index)                                                     \
-        .channels = {                                                     \
+        .channels = {                                                                   \
             DT_INST_FOREACH_CHILD_STATUS_OKAY_VARGS(index, DSHOT_CH_REF, index, data)   \
         },                                                                              \
     };								                                                    \
@@ -1075,7 +1072,7 @@ int test = DT_NODE_CHILD_IDX(DT_N_S_soc_S_timers_40000400_S_dshot_S_ch1);
         .pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(index),		                            \
         .default_type = DT_INST_PROP(index, default_type),                              \
         DSHOT_CONFIG_DMA_BURST(index)                                                   \
-        .channels = {                                                     \
+        .channels = {                                                                   \
             DT_INST_FOREACH_CHILD_STATUS_OKAY_VARGS(index, DSHOT_CH_REF, index, config) \
         },                                                                              \
     };                                                                                  \

@@ -150,24 +150,24 @@ __subsystem struct dshot_driver_api {
 };
 /** @endcond */
 
-static inline bool dshot_get_enabled(struct device *dev)
+static inline bool dshot_get_enabled(const struct device *dev)
 {
     return esc_get_enabled(dev);
 }
 
-static inline bool dshot_set_enabled(struct device *dev, bool enabled)
+static inline bool dshot_set_enabled(const struct device *dev, bool enabled)
 {
     return esc_set_enabled(dev, enabled);
 }
 
-static inline enum dshot_type dshot_get_type(struct device *dev)
+static inline enum dshot_type dshot_get_type(const struct device *dev)
 {
     const struct dshot_driver_api *dshot_api = dev->api;
 
     return dshot_api->get_type(dev);
 }
 
-static inline int dshot_set_type(struct device *dev, enum dshot_type type)
+static inline int dshot_set_type(const struct device *dev, enum dshot_type type)
 {
     const struct dshot_driver_api *dshot_api = dev->api;
 
@@ -178,14 +178,14 @@ static inline int dshot_set_type(struct device *dev, enum dshot_type type)
     return dshot_api->set_type(dev, type);
 }
 
-static inline enum dshot_mode dshot_get_mode(struct device *dev)
+static inline enum dshot_mode dshot_get_mode(const struct device *dev)
 {
     const struct dshot_driver_api *dshot_api = dev->api;
 
     return dshot_api->get_mode(dev);
 }
 
-static inline int dshot_set_mode(struct device *dev, enum dshot_mode mode)
+static inline int dshot_set_mode(const struct device *dev, enum dshot_mode mode)
 {
 #ifndef CONFIG_DSHOT_BIDIR
     ARG_UNUSED(dev);
@@ -202,31 +202,31 @@ static inline int dshot_set_mode(struct device *dev, enum dshot_mode mode)
 #endif
 }
 
-static inline int dshot_set_throttle(struct device *dev, uint32_t channel, uint16_t throttle)
+static inline int dshot_set_throttle(const struct device *dev, uint32_t channel, uint16_t throttle)
 {
     return esc_set_throttle(dev, channel, throttle);
 }
 
-static inline int dshot_set_command(struct device *dev, uint32_t channel, enum dshot_command command)
+static inline int dshot_set_command(const struct device *dev, uint32_t channel, enum dshot_command command)
 {
     const struct dshot_driver_api *dshot_api = dev->api;
 
     return dshot_api->set_command(dev, channel, command);
 }
 
-static inline int dshot_set_request_telem(struct device *dev, uint32_t channel)
+static inline int dshot_set_request_telem(const struct device *dev, uint32_t channel)
 {
     const struct dshot_driver_api *dshot_api = dev->api;
 
     return dshot_api->set_request_telem(dev, channel);
 }
 
-static inline int dshot_send(struct device *dev)
+static inline int dshot_send(const struct device *dev)
 {
     return esc_send(dev);
 }
 
-static inline int dshot_command_in_progress(struct device *dev, uint32_t channel)
+static inline int dshot_command_in_progress(const struct device *dev, uint32_t channel)
 {
     const struct dshot_driver_api *dshot_api = dev->api;
 
