@@ -3,6 +3,8 @@
 
 # Common fields for DShot controllers
 
+include: [esc-base.yaml]
+
 properties:
   default-type:
     type: int
@@ -12,8 +14,3 @@ properties:
       - 150
       - 300
       - 600
-
-  "#dshot-cells":
-    type: int
-    required: true
-    description: Number of items to expect in a DShot specifier

@@ -21,44 +21,19 @@ properties:
     type: boolean
     description: Use DMA Burst if CONFIG_DSHOT_STM32_DMA_BURST=y
 
-  "#dshot-cells":
+  "#esc-cells":
     const: 1
     description: |
       Number of items to expect in a DShot phandle
       - channel of the timer used for DShot
 
-dshot-cells:
+esc-cells:
   - channel
 
 child-binding:
   description: DShot channel
 
   properties:
-    channel:
-      type: int
-      required: true
-      description: Channel identifier.
-      enum:
-        - 1
-        - 2
-        - 3
-        - 4
-
     complementary:
       type: boolean
       description: Use the complementary timer channel (ex TIM1_CH1N).
-
-    inverted:
-      type: boolean
-      description: Invert the dshot output.
-
-    status:
-      type: string
-      required: true
-      description: Indicates the operational status of a device.
-      enum:
-        - "okay"
-        - "disabled"
-        - "reserved"
-        - "fail"
-        - "fail-sss"

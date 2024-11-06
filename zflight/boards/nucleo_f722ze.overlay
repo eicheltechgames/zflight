@@ -1,0 +1,44 @@
+/*
+ * Copyright (c) 2024 Arthur Eichelberger
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&pwm1 {
+    status = "disabled";
+};
+
+&dma1 {
+    status = "okay";
+};
+
+&timers2 {
+	dshot1: dshot {
+		compatible = "st,stm32-dshot";
+		pinctrl-0 = <&tim2_ch1_pa0>;
+		pinctrl-names = "default";
+		dmas =  <&dma1 1 3 0x3D440 3>,
+				<&dma1 5 3 0x3D440 0>;
+		dma-names = "up", "ch1";
+		default-type = <150>;
+		use-dma-burst;
+		#esc-cells = <1>;
+		m1_dshot: ch1 {
+			channel = <1>;
+			status = "okay";
+		};
+		m2_dshot: ch2 {
+			channel = <2>;
+			status = "disabled";
+		};
+		ch3 {
+			channel = <3>;
+			status = "disabled";
+		};
+		ch4 {
+			channel = <4>;
+			status = "disabled";
+		};
+		status = "okay";
+	};
+};

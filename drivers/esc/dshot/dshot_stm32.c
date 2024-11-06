@@ -20,7 +20,7 @@
 #endif /* CONFIG_DCACHE */
 #ifdef CONFIG_NOCACHE_MEMORY
 #include <zephyr/linker/linker-defs.h>
-#elif defined(CONFIG_CACHE_MANAGEMENT)
+#else
 #include <zephyr/arch/cache.h>
 #endif /* CONFIG_NOCACHE_MEMORY */
 
@@ -41,17 +41,25 @@ LOG_MODULE_REGISTER(dshot_stm32, CONFIG_DSHOT_LOG_LEVEL);
 /** Maximum number of timer channels : only 4 supported */
 #define TIMER_MAX_CH    4u
 
+#define TIMER_BUF_TYPE  uint32_t
+
 #if defined(CONFIG_DCACHE) &&                               \
     !defined(CONFIG_NOCACHE_MEMORY)
-/* currently, manual cache coherency management is only done on dummy_rx_tx_buffer */
 #define DSHOT_STM32_MANUAL_CACHE_COHERENCY_REQUIRED	1
+#define DSHOT_STM32_DMA_TIM_BUF_SIZE    \
+    ROUND_UP((DSHOT_TIM_BUF_LEN * sizeof(TIMER_BUF_TYPE)), CONFIG_DCACHE_LINE_SIZE)
+#define DSHOT_STM32_TIM_BUF_LEN         \
+    (DSHOT_STM32_DMA_TIM_BUF_SIZE / sizeof(TIMER_BUF_TYPE))
 #else
-#define  DSHOT_STM32_MANUAL_CACHE_COHERENCY_REQUIRED	0
-#endif /* defined(CONFIG_DCACHE) && !defined(CONFIG_NOCACHE_MEMORY) */
+#define DSHOT_STM32_MANUAL_CACHE_COHERENCY_REQUIRED	0
+#define DSHOT_STM32_DMA_TIM_BUF_SIZE    (DSHOT_TIM_BUF_LEN * sizeof(TIMER_BUF_TYPE))
+#define DSHOT_STM32_TIM_BUF_LEN         (DSHOT_TIM_BUF_LEN)
+#endif
 
-#define DSHOT_STM32_DMA_TIM_BUF_SIZE        (DSHOT_TIM_BUF_LEN * sizeof(uint32_t))
-#define DSHOT_STM32_DMA_BURST_TIM_BUF_LEN   (DSHOT_TIM_BUF_LEN * TIMER_MAX_CH)
-#define DSHOT_STM32_DMA_BURST_TIM_BUF_SIZE  (DSHOT_STM32_DMA_BURST_TIM_BUF_LEN * sizeof(uint32_t))
+#ifndef CONFIG_DCACHE
+// override for interoperability
+#define CONFIG_DCACHE_LINE_SIZE 32
+#endif
 
 enum dshot_stm32_dir {
     INPUT_DIR = 0b01,
@@ -325,8 +333,8 @@ static void dshot_stm32_set_direction_output(const struct device *dev)
 
             struct dshot_stm32_dma *ch_dma = &ch_data->dma;
             dma_stop(ch_dma->dev, ch_dma->channel);
-            ch_dma->block.source_address = (uint32_t)&ch_data->tim_buf[0];
-            ch_dma->block.dest_address = (uint32_t)&cfg->timer->DMAR;
+            ch_dma->block.source_address = (uintptr_t)&ch_data->tim_buf[0];
+            ch_dma->block.dest_address = (uintptr_t)((volatile uint32_t*)(&cfg->timer->CCR1) + ch_idx);
             ch_dma->block.source_addr_adj = DMA_ADDR_ADJ_INCREMENT;
             ch_dma->block.dest_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
             ch_dma->config.channel_direction = MEMORY_TO_PERIPHERAL;
@@ -384,8 +392,8 @@ static void dshot_stm32_set_direction_input(const struct device *dev)
 
         struct dshot_stm32_dma *ch_dma = &ch_data->dma;
         dma_stop(ch_dma->dev, ch_dma->channel);
-        ch_dma->block.source_address = (uint32_t)&cfg->timer->DMAR;
-        ch_dma->block.dest_address = (uint32_t)&ch_data->tim_buf[0];
+        ch_dma->block.source_address = (uintptr_t)((volatile uint32_t*)&cfg->timer->CCR1 + ch_idx);
+        ch_dma->block.dest_address = (uintptr_t)&ch_data->tim_buf[0];
         ch_dma->block.source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
         ch_dma->block.dest_addr_adj = DMA_ADDR_ADJ_INCREMENT;
         ch_dma->config.channel_direction = PERIPHERAL_TO_MEMORY;
@@ -434,8 +442,8 @@ static int dshot_stm32_set_type(const struct device *dev, enum dshot_type type)
         return err;
     }
 
-    const uint16_t prescaler = tim_clk / DSHOT_TIM_CNTS_PER_BIT * DSHOT_BIT_RATE(type);
-    const uint16_t rem = tim_clk % DSHOT_TIM_CNTS_PER_BIT * DSHOT_BIT_RATE(type);
+    const uint16_t prescaler = tim_clk / (DSHOT_TIM_CNTS_PER_BIT * DSHOT_BIT_RATE(type));
+    const uint16_t rem = tim_clk % (DSHOT_TIM_CNTS_PER_BIT * DSHOT_BIT_RATE(type));
     if (rem) {
         LOG_ERR("Timer clock not configured for dshot (%d)", tim_clk);
         return -EIO;
@@ -586,7 +594,11 @@ static int dshot_stm32_set_throttle(const struct device *dev, uint32_t channel, 
 {
     static const struct dshot_active_command reset = { 0 };
 
-    int err = dshot_stm32_set_packet(dev, channel, dshot_common_quantize_throttle(throttle));
+    throttle = dshot_common_quantize_throttle(throttle);
+    if (throttle <= DSHOT_CMD_MAX) {
+        throttle = 0;
+    }
+    int err = dshot_stm32_set_packet(dev, channel, throttle);
 
     if (!err) {
         // ch_data validated in dshot_stm32_set_packet
@@ -638,6 +650,8 @@ static int dshot_stm32_send(const struct device *dev)
         return -EBUSY;
     }
 
+    dshot_stm32_set_direction_output(dev);
+
     uint32_t curr_timestamp = k_uptime_get_32();
     for (int ch_idx = 0; ch_idx < TIMER_MAX_CH; ++ch_idx) {
         const struct dshot_stm32_channel_config *ch_cfg =
@@ -686,6 +700,7 @@ static int dshot_stm32_send(const struct device *dev)
     }
 #endif
 
+    LL_TIM_SetCounter(cfg->timer, 0);
     LL_TIM_EnableCounter(cfg->timer);
     return 0;
 }
@@ -736,7 +751,6 @@ static int dshot_stm32_stop_receive(const struct device *dev)
 #endif
 
     LL_TIM_DisableCounter(cfg->timer);
-    dshot_stm32_set_direction_output(dev);
     return 0;
 }
 
@@ -784,14 +798,16 @@ static const struct dshot_driver_api dshot_stm32_driver_api = {
 #endif
 };
 
-#ifdef CONFIG_DSHOT_BIDIR
 static void dshot_stm32_dma_cb(const struct device *dma_dev, void *user_data,
                         uint32_t channel, int status)
 {
     const struct device *dshot_dev = user_data;
     const struct dshot_stm32_config *cfg = dshot_dev->config;
-    struct dshot_stm32_data *data = dshot_dev->data;
 
+    LL_TIM_DisableCounter(cfg->timer);
+
+#ifdef CONFIG_DSHOT_BIDIR
+    struct dshot_stm32_data *data = dshot_dev->data;
     if (status == DMA_STATUS_COMPLETE) {
         if (data->curr_dir == OUTPUT_DIR) {
             dshot_stm32_set_direction_input(dshot_dev);
@@ -803,8 +819,8 @@ static void dshot_stm32_dma_cb(const struct device *dma_dev, void *user_data,
     } else {
         dshot_stm32_set_direction_output(dshot_dev);
     }
-}
 #endif
+}
 
 static int dshot_stm32_init(const struct device *dev)
 {
@@ -904,24 +920,26 @@ static int dshot_stm32_init(const struct device *dev)
 
         /* configure dma */
         struct dshot_stm32_dma *dma = &ch_data->dma;
+        dma->config.source_burst_length = 1;
+        dma->config.dest_burst_length = 1;
         dma->config.head_block = &dma->block;
         dma->config.user_data = (void *)dev;
-        dma->block.source_address = (uint32_t)&ch_data->tim_buf[0]; //@todo uintptr_t?
-        dma->block.dest_address = (uint32_t)(&cfg->timer->CCR1 + ch_idx);
+        dma->block.source_address = (uintptr_t)(&ch_data->tim_buf[0]);
+        dma->block.dest_address = (uintptr_t)((volatile uint32_t*)(&cfg->timer->CCR1) + ch_idx);
         dma->block.block_size = DSHOT_STM32_DMA_TIM_BUF_SIZE;
     }
 
 #ifdef CONFIG_DSHOT_STM32_DMA_BURST
     /* configure dma burst */
     struct dshot_stm32_dma *burst_dma = &data->burst_dma;
+    burst_dma->config.source_burst_length = 4;
+    burst_dma->config.dest_burst_length = 1;
     burst_dma->config.head_block = &burst_dma->block;
     burst_dma->config.user_data = (void *)dev;
-    burst_dma->block.source_address = (uint32_t)&data->burst_tim_buf[0]; //@todo uintptr_t?
-    burst_dma->block.dest_address = (uint32_t)&cfg->timer->DMAR;
+    burst_dma->block.source_address = (uintptr_t)&data->burst_tim_buf[0];
+    burst_dma->block.dest_address = (uintptr_t)((volatile uint32_t*)&cfg->timer->DMAR);
     burst_dma->block.block_size = DSHOT_STM32_DMA_BURST_TIM_BUF_SIZE;
 #endif
-
-    dshot_stm32_set_direction_output(dev);
 
     return 0;
 }
@@ -949,8 +967,6 @@ static int dshot_stm32_init(const struct device *dev)
     }                                           \
 
 #ifdef CONFIG_DSHOT_BIDR
-#define DSHOT_DMA_CB_INIT   dshot_stm32_dma_cb
-
 #define DSHOT_DATA_BIDIR    \
     .ic_init = { 0 },       \
     .curr_dir = DIR_OUTPUT, \
@@ -959,7 +975,6 @@ static int dshot_stm32_init(const struct device *dev)
     .oc_init = { 0 },       \
 
 #else
-#define DSHOT_DMA_CB_INIT   NULL
 #define DSHOT_DATA_BIDIR
 #define DSHOT_CH_DATA_BIDIR
 #endif
@@ -982,7 +997,7 @@ static int dshot_stm32_init(const struct device *dev)
             .dest_data_size = STM32_DMA_CONFIG_PERIPHERAL_DATA_SIZE(    \
                 STM32_DMA_CHANNEL_CONFIG(index, ch)),                   \
             .block_count = 1,					                        \
-            .dma_callback = DSHOT_DMA_CB_INIT,                          \
+            .dma_callback = dshot_stm32_dma_cb,                          \
         },								                                \
         .block = {                                                      \
             .source_addr_adj = STM32_DMA_CONFIG_MEMORY_ADDR_INC(	    \
@@ -997,20 +1012,17 @@ static int dshot_stm32_init(const struct device *dev)
     }                                                                   \
 
 #ifdef DSHOT_STM32_DMA_BURST
-#define DSHOT_DMA_BURST_INIT(index)                                         \
-    static __aligned(32) uint32_t                                           \
-        dshot_burst_tim_buf_##index##[DSHOT_STM32_DMA_BURST_TIM_BUF_LEN]    \
-        = { 0 } __nocache;                                                  \
+#define NUM_TIM_BUF(index)  TIMER_MAX_CH
 
 #define DSHOT_DATA_DMA_BURST(index)                     \
     .burst_dma = DSHOT_DMA_CHANNEL_INIT(index, UP),     \
-    .burst_tim_buf = &dshot_burst_tim_buf_##index[0],   \
+    .burst_tim_buf = &dshot_tim_buf_##index[0][0],   \
 
 #define DSHOT_CONFIG_DMA_BURST(index)                       \
     .use_dma_burst = DT_INST_PROP(index, use_dma_burst),    \
 
 #else
-#define DSHOT_DMA_BURST_INIT(index)
+#define NUM_TIM_BUF(index)  DT_INST_CHILD_NUM_STATUS_OKAY(index)
 #define DSHOT_DATA_DMA_BURST(index)
 #define DSHOT_CONFIG_DMA_BURST(index)
 #endif
@@ -1025,7 +1037,7 @@ static int dshot_stm32_init(const struct device *dev)
         .pending_telem_req = false,                                                 \
         .active_cmd = { 0, 0, 0 },                                                  \
         .dma = DSHOT_DMA_CHANNEL_INIT(index, GET_DMA_CH(DT_PROP(node, channel))),   \
-        .tim_buf = &dshot_tim_bufs_##index[DT_NODE_CHILD_IDX(node)][0],             \
+        .tim_buf = &dshot_tim_buf_##index[DT_NODE_CHILD_IDX(node)][0],              \
     },                                                                              \
 
 #define DSHOT_CH_CONFIG_INIT(node)                                                          \
@@ -1036,9 +1048,6 @@ static int dshot_stm32_init(const struct device *dev)
     },                                                                                      \
 
 #define DSHOT_CH_INIT(index)                                                                \
-    static __aligned(32) uint32_t                                                           \
-        dshot_tim_bufs_##index[DT_INST_CHILD_NUM_STATUS_OKAY(index)][DSHOT_TIM_BUF_LEN];    \
-                                                                                            \
     static struct dshot_stm32_channel_data dshot_stm32_ch_data_##index[] = {                \
         DT_INST_FOREACH_CHILD_STATUS_OKAY_VARGS(index, DSHOT_CH_DATA_INIT, index)           \
     };                                                                                      \
@@ -1049,9 +1058,11 @@ static int dshot_stm32_init(const struct device *dev)
 
 #define DSHOT_DEVICE_INIT(index)                                                        \
                                                                                         \
-    DSHOT_CH_INIT(index)                                                                \
+    static __aligned(CONFIG_DCACHE_LINE_SIZE) uint32_t                                  \
+        dshot_tim_buf_##index[NUM_TIM_BUF(index)][DSHOT_STM32_TIM_BUF_LEN]              \
+        __nocache = { 0 };                                                              \
                                                                                         \
-    DSHOT_DMA_BURST_INIT(index)                                                         \
+    DSHOT_CH_INIT(index)                                                                \
                                                                                         \
     static struct dshot_stm32_data dshot_stm32_data_##index = {                         \
         DSHOT_DATA_BIDIR                                                                \

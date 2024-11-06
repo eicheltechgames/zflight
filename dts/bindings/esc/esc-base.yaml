@@ -1,0 +1,39 @@
+# Copyright (c) 2024 Arthur Eichelberger
+# SPDX-License-Identifier: Apache-2.0
+
+# Common fields for DShot controllers
+
+properties:
+  "#esc-cells":
+    type: int
+    required: true
+    description: Number of items to expect in an ESC specifier
+
+child-binding:
+  description: DShot channel
+
+  properties:
+    channel:
+      type: int
+      required: true
+      description: Channel identifier.
+      enum:
+        - 1
+        - 2
+        - 3
+        - 4
+
+    inverted:
+      type: boolean
+      description: Invert the dshot output.
+
+    status:
+      type: string
+      required: true
+      description: Indicates the operational status of a device.
+      enum:
+        - "okay"
+        - "disabled"
+        - "reserved"
+        - "fail"
+        - "fail-sss"

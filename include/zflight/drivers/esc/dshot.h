@@ -245,7 +245,7 @@ static inline int dshot_decode_telem(const struct device *dev, uint32_t channel,
 #else
     const struct dshot_driver_api *dshot_api = dev->api;
 
-    return dshot_api->decode_telem(dev, channel, out_telem);
+    return dshot_api->decode_telem(dev, channel, out_type, out_value);
 #endif
 }
 

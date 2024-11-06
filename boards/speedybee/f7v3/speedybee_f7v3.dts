@@ -13,8 +13,8 @@
 	compatible = "spbe,speedybee_f7v3";
 
 	chosen {
-		zephyr,console = &usart1;
-		zephyr,shell-uart = &usart1;
+		zephyr,console = &cdc_acm_console_uart1;
+		zephyr,shell-uart = &cdc_acm_console_uart1;
 		zephyr,sram = &sram0;
 		zephyr,flash = &flash0;
 		zephyr,dtcm = &dtcm;
@@ -31,14 +31,6 @@
 
 	aliases {
 		led0 = &blue_led;
-		/*motors =    <&dshot1 1>, // M1
-					<&dshot1 2>, // M2
-					<&dshot2 1>, // M3
-					<&dshot3 1>, // M4
-					<&dshot3 2>, // M5
-					<&dshot2 2>, // M6
-					<&dshot2 3>, // M7
-					<&dshot2 4>; // M8*/
 	};
 };
 
@@ -72,106 +64,50 @@
 	apb2-prescaler = <2>;
 };
 
-&usart1 {
-	pinctrl-0 = <&usart1_tx_pa9 &usart1_rx_pa10>;
-	pinctrl-names = "default";
-	current-speed = <115200>;
-	status = "okay";
-};
-
 &dma1 {
 	status = "okay";
 };
 
-&timers2 {
-	dshot {
-		compatible = "st,stm32-dshot";
-		default-type = <600>;
-		#dshot-cells = <1>;
-		ch1 {
-			channel = <1>;
-			status = "disabled";
-		};
-		ch2 {
-			channel = <2>;
-			status = "disabled";
-		};
-		ch3 {
-			channel = <3>;
-			status = "disabled";
-		};
-		ch4 {
-			channel = <4>;
-			status = "disabled";
-		};
-		status = "disabled";
-	};
+&dma2 {
+	status = "okay";
 };
 
-&timers3 {
-	dshot {
-		compatible = "st,stm32-dshot";
-		default-type = <600>;
-		#dshot-cells = <1>;
-		ch1 {
-			channel = <1>;
-			status = "disabled";
-		};
-		ch2 {
-			channel = <2>;
-			status = "disabled";
-		};
-		ch3 {
-			channel = <3>;
-			status = "disabled";
-		};
-		ch4 {
-			channel = <4>;
-			status = "disabled";
-		};
-		status = "disabled";
-	};
-};
-
-&timers4 {
-	dshot {
-		compatible = "st,stm32-dshot";
-		default-type = <600>;
-		#dshot-cells = <1>;
-		ch1 {
-			channel = <1>;
-			status = "disabled";
-		};
-		ch2 {
-			channel = <2>;
-			status = "disabled";
-		};
-		ch3 {
-			channel = <3>;
-			status = "disabled";
-		};
-		ch4 {
-			channel = <4>;
-			status = "disabled";
-		};
-		status = "disabled";
+zephyr_udc0: &usbotg_fs {
+	pinctrl-0 = <&usb_otg_fs_dm_pa11 &usb_otg_fs_dp_pa12>;
+	pinctrl-names = "default";
+	status = "okay";
+	cdc_acm_console_uart1: cdc_acm_console_uart1 {
+		compatible = "zephyr,cdc-acm-uart";
 	};
 };
 
 &timers2 {
 	dshot1: dshot {
+		compatible = "st,stm32-dshot";
 		pinctrl-0 = <&tim2_ch1_pa15 &tim2_ch2_pb3>;
 		pinctrl-names = "default";
 		dmas =  <&dma1 1 3 0x3D440 3>,
 				<&dma1 5 3 0x3D440 0>,
 				<&dma1 6 3 0x3D440 0>;
 		dma-names = "up", "ch1", "ch2";
+		default-type = <600>;
 		use-dma-burst;
-		ch1 {
+		#esc-cells = <1>;
+		m1_dshot: ch1 {
+			channel = <1>;
 			status = "okay";
 		};
-		ch2 {
+		m2_dshot: ch2 {
+			channel = <2>;
 			status = "okay";
+		};
+		ch3 {
+			channel = <3>;
+			status = "disabled";
+		};
+		ch4 {
+			channel = <4>;
+			status = "disabled";
 		};
 		status = "okay";
 	};
@@ -179,6 +115,7 @@
 
 &timers3 {
 	dshot2: dshot {
+		compatible = "st,stm32-dshot";
 		pinctrl-0 = <&tim3_ch1_pb4 &tim3_ch2_pb5 &tim3_ch3_pb0 &tim3_ch4_pb1>;
 		pinctrl-names = "default";
 		dmas =  <&dma1 2 5 0x3D440 3>,
@@ -187,17 +124,23 @@
 				<&dma1 7 5 0x3D440 0>,
 				<&dma1 2 5 0x3D440 0>;
 		dma-names = "up", "ch1", "ch2", "ch3", "ch4";
+		default-type = <600>;
 		use-dma-burst;
-		ch1 {
+		#esc-cells = <1>;
+		m3_dshot: ch1 {
+			channel = <1>;
 			status = "okay";
 		};
-		ch2 {
+		m6_dshot: ch2 {
+			channel = <2>;
 			status = "okay";
 		};
-		ch3 {
+		m7_dshot: ch3 {
+			channel = <3>;
 			status = "okay";
 		};
-		ch4 {
+		m8_dshot: ch4 {
+			channel = <4>;
 			status = "okay";
 		};
 		status = "okay";
@@ -206,19 +149,66 @@
 
 &timers4 {
 	dshot3: dshot {
+		compatible = "st,stm32-dshot";
 		pinctrl-0 = <&tim2_ch1_pa15 &tim2_ch2_pb3>;
 		pinctrl-names = "default";
 		dmas =  <&dma1 6 2 0x3D440 3>,
 				<&dma1 3 2 0x3D440 0>,
 				<&dma1 0 2 0x3D440 0>;
 		dma-names = "up", "ch1", "ch2";
+		default-type = <600>;
 		use-dma-burst;
-		ch1 {
+		#esc-cells = <1>;
+		m4_dshot: ch1 {
+			channel = <1>;
 			status = "okay";
 		};
-		ch2 {
+		m5_dshot: ch2 {
+			channel = <2>;
 			status = "okay";
+		};
+		ch3 {
+			channel = <3>;
+			status = "disabled";
+		};
+		ch4 {
+			channel = <4>;
+			status = "disabled";
 		};
 		status = "okay";
 	};
+};
+
+&usart1 {
+	pinctrl-0 = <&usart1_tx_pa9>, <&usart1_rx_pa10>;
+	pinctrl-names = "default";
+	dmas = <&dma2 7 4 0x400 3>, <&dma2 2 4 0x400 3>;
+	dma-names = "tx", "rx";
+	status = "okay";
+};
+
+&usart2 {
+	pinctrl-0 = <&usart2_tx_pa2>, <&usart2_rx_pa3>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&usart3 {
+	pinctrl-0 = <&usart3_tx_pb10>, <&usart3_rx_pb11>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&uart4 {
+	pinctrl-0 = <&uart4_rx_pa1>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&usart6 {
+	pinctrl-0 = <&usart6_tx_pc6>, <&usart6_rx_pc7>;
+	pinctrl-names = "default";
+	dmas = <&dma2 6 5 0x400 3>, <&dma2 1 5 0x400 3>;
+	dma-names = "tx", "rx";
+	status = "okay";
 };

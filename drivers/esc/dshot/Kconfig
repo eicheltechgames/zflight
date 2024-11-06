@@ -24,6 +24,12 @@ config DSHOT_SHELL
 	help
 	  Enable the DShot related shell commands.
 
+config HAS_DSHOT_BIDIR
+    bool
+	help
+	  This option extends the DShot driver API with the ability
+	  to receive telemetry from the ESC on the signal line.
+
 config DSHOT_BIDIR
     bool "Bidirectional DShot ESC"
     depends on HAS_DSHOT_BIDIR
@@ -32,7 +38,7 @@ config DSHOT_BIDIR
 	  to receive telemetry from the ESC on the signal line.
 
 config DSHOT_EDT
-    bool "Extended Bidirectional DShot Telemetry"
+    bool "Extended Bidirectional DShot Telemetry" if DSHOT_BIDIR
     depends on DSHOT_BIDIR
 	help
 	  This option enables extended DShot Bidirectional telemetry.
