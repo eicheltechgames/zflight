@@ -9,14 +9,26 @@
  * @brief DShot shell commands.
  */
 
+#include <stdlib.h>
+
 #include <zephyr/shell/shell.h>
 #include <zephyr/kernel.h>
-#include <stdlib.h>
 
 #include <zflight/drivers/esc/dshot.h>
 
+#include "dshot_common.h"
+
 #define DSHOT_SHELL_THREAD_PERIOD_MSEC  10
 
+#define DSHOT_NODE DT_ALIAS(dshot0)
+
+/*
+ * A build error on this line means your board is unsupported.
+ * Add dshot0 alias on board overlay to fix this.
+ */
+static const struct device *dshot_dev = DEVICE_DT_GET(DSHOT_NODE);
+
+// types
 enum dshot_shell_update_type {
     DSHOT_SHELL_UPDATE_NONE,
     DSHOT_SHELL_UPDATE_THROTTLE,
@@ -29,20 +41,24 @@ static const char update_type_desc[][10] = {
     [DSHOT_SHELL_UPDATE_COMMAND] = "COMMAND",
 };
 
-// @todo global data
-
-static const struct device *update_dev = NULL;
+// global data
+static bool run_dshot_shell_update = false;
+static enum dshot_shell_update_type update_type = DSHOT_SHELL_UPDATE_NONE;
 static uint32_t update_channel = 0;
 static uint16_t update_throttle = 0;
 static uint16_t update_command = 0;
-static enum dshot_shell_update_type update_type = DSHOT_SHELL_UPDATE_NONE;
-static bool run_dshot_shell_update = false;
 K_MUTEX_DEFINE(update_mutex);
 
-// @todo thread function
+// dshot shell thread
+static void dshot_shell_update(void *, void *, void *);
+#define STACK_SIZE  1024
+#define PRIORITY    5
+K_KERNEL_THREAD_DEFINE(dshot_shell_tid, STACK_SIZE, \
+    dshot_shell_update, NULL, NULL, NULL,           \
+    PRIORITY, 0, SYS_FOREVER_MS);                   \
+
 static void dshot_shell_update(void *, void *, void *)
 {
-    const struct device *dev;
     uint32_t channel;
     uint16_t throttle;
     uint16_t command;
@@ -53,7 +69,6 @@ static void dshot_shell_update(void *, void *, void *)
         int err = 0;
 
         k_mutex_lock(&update_mutex, K_FOREVER);
-        dev = update_dev;
         channel = update_channel;
         throttle = update_throttle;
         command = update_command;
@@ -66,15 +81,15 @@ static void dshot_shell_update(void *, void *, void *)
 #endif
 
         int output = 0;
-        if (!dshot_command_in_progress(dev, channel)) {
+        if (!dshot_command_in_progress(dshot_dev, channel)) {
             switch (type)
             {
             case DSHOT_SHELL_UPDATE_THROTTLE:
-                err = dshot_set_throttle(dev, channel, throttle);
+                err = dshot_set_throttle(dshot_dev, channel, throttle);
                 output = throttle;
                 break;
             case DSHOT_SHELL_UPDATE_COMMAND:
-                err = dshot_set_command(dev, channel, command);
+                err = dshot_set_command(dshot_dev, channel, command);
                 output = command;
                 break;
             default:
@@ -88,7 +103,7 @@ static void dshot_shell_update(void *, void *, void *)
             }
         }
 
-        err = dshot_send(dev);
+        err = dshot_send(dshot_dev);
         if (err) {
             if (!printed_err) {
                 printk("Send Error (err %d)\n", err);
@@ -102,72 +117,47 @@ static void dshot_shell_update(void *, void *, void *)
     }
 }
 
-#define STACK_SIZE  2048
-#define PRIORITY    5
-K_KERNEL_THREAD_DEFINE(dshot_shell_tid, STACK_SIZE, \
-    dshot_shell_update, NULL, NULL, NULL,           \
-    PRIORITY, 0, SYS_FOREVER_MS);                   \
-
-static int cmd_start_thread(const struct shell *sh, size_t argc, char **argv)
+static int cmd_set_enabled(const struct shell *sh, size_t argc, char **argv)
 {
-    static const int arg_idx_run = 1;
+    const int arg_idx_enabled = 1;
 
-    bool run = strtoul(argv[arg_idx_run], NULL, 0) > 0;
+    int err;
+    bool enabled;
 
-    if (run == run_dshot_shell_update) {
+    enabled = strtoul(argv[arg_idx_enabled], NULL, 0) > 0;
+
+    if (enabled == run_dshot_shell_update) {
         return 0;
     }
 
-    run_dshot_shell_update = run;
-    if (run) {
+    run_dshot_shell_update = enabled;
+    err = dshot_set_enabled(dshot_dev, enabled);
+    if (err) {
+        shell_error(sh, "Failed to %s device (err %d)",
+            enabled ? "enable" : "disable", err);
+        return err;
+    }
+
+    if (enabled) {
         k_thread_start(dshot_shell_tid);
     } else {
-        k_thread_join(dshot_shell_tid, K_FOREVER);
+        err = k_thread_join(dshot_shell_tid, K_MSEC(DSHOT_SHELL_THREAD_PERIOD_MSEC + 1));
+        if (err) {
+            shell_error(sh, "Failed to stop dshot shell thread (%d)", err);
+            return err;
+        }
     }
-    return 0;
-}
 
-static int cmd_set_enabled(const struct shell *sh, size_t argc, char **argv)
-{
-    static const int arg_idx_device = 1;
-    static const int arg_idx_enabled = 2;
-
-    int err;
-    const struct device *dev;
-    bool enabled;
-
-    dev = device_get_binding(argv[arg_idx_device]);
-    if (!dev) {
-		shell_error(sh, "DShot device not found");
-		return -EINVAL;
-	}
-    enabled = strtoul(argv[arg_idx_enabled], NULL, 0) > 0;
-
-    err = dshot_set_enabled(dev, enabled);
-	if (err) {
-		shell_error(sh, "Failed to %s device (err %d)",
-			enabled ? "enable" : "disable", err);
-		return err;
-	}
-
-	return 0;
+    return err;
 }
 
 static int cmd_set_type(const struct shell *sh, size_t argc, char **argv)
 {
-    static const int arg_idx_device = 1;
-    static const int arg_idx_type = 2;
+    const int arg_idx_type = 1;
 
     int err;
-    const struct device *dev;
     unsigned type;
     bool type_valid;
-
-    dev = device_get_binding(argv[arg_idx_device]);
-    if (!dev) {
-		shell_error(sh, "DShot device not found");
-		return -EINVAL;
-	}
 
     type = strtoul(argv[arg_idx_type], NULL, 0);
     switch (type)
@@ -184,33 +174,25 @@ static int cmd_set_type(const struct shell *sh, size_t argc, char **argv)
 
     if (!type_valid) {
         shell_error(sh, "Invalid DShot type");
-		return -EINVAL;
+        return -EINVAL;
     }
 
-    err = dshot_set_type(dev, (enum dshot_type)type);
-	if (err) {
-		shell_error(sh, "Failed to set type (err %d)", err);
-		return err;
-	}
+    err = dshot_set_type(dshot_dev, (enum dshot_type)type);
+    if (err) {
+        shell_error(sh, "Failed to set type (err %d)", err);
+        return err;
+    }
 
-	return 0;
+    return 0;
 }
 
 static int cmd_set_mode(const struct shell *sh, size_t argc, char **argv)
 {
-    static const int arg_idx_device = 1;
-    static const int arg_idx_mode = 2;
+    const int arg_idx_mode = 1;
 
     int err;
-    const struct device *dev;
     unsigned mode;
     bool mode_valid;
-
-    dev = device_get_binding(argv[arg_idx_device]);
-    if (!dev) {
-		shell_error(sh, "DShot device not found");
-		return -EINVAL;
-	}
 
     mode = strtoul(argv[arg_idx_mode], NULL, 0);
     switch (mode)
@@ -226,67 +208,91 @@ static int cmd_set_mode(const struct shell *sh, size_t argc, char **argv)
 
     if (!mode_valid) {
         shell_error(sh, "Invalid DShot mode");
-		return -EINVAL;
+        return -EINVAL;
     }
 
-    err = dshot_set_mode(dev, (enum dshot_mode)mode);
-	if (err) {
-		shell_error(sh, "Failed to set type (err %d)", err);
-		return err;
-	}
+    err = dshot_set_mode(dshot_dev, (enum dshot_mode)mode);
+    if (err) {
+        shell_error(sh, "Failed to set type (err %d)", err);
+        return err;
+    }
 
-	return 0;
+    return 0;
 }
 
 static int cmd_set_throttle(const struct shell *sh, size_t argc, char **argv)
 {
-    static const int arg_idx_device = 1;
-    static const int arg_idx_channel = 2;
-    static const int arg_idx_throttle = 3;
+    const int arg_idx_channel = 1;
+    const int arg_idx_throttle = 2;
 
-    const struct device *dev;
     uint32_t channel;
     uint32_t throttle;
-
-    dev = device_get_binding(argv[arg_idx_device]);
-    if (!dev) {
-		shell_error(sh, "DShot device not found");
-		return -EINVAL;
-	}
 
     channel = strtoul(argv[arg_idx_channel], NULL, 0);
     throttle = strtoul(argv[arg_idx_throttle], NULL, 0);
     throttle = CLAMP(throttle, 0, 100) * (UINT16_MAX / 100);
 
     k_mutex_lock(&update_mutex, K_FOREVER);
-    update_dev = dev;
     update_channel = channel;
     update_throttle = throttle;
     update_type = DSHOT_SHELL_UPDATE_THROTTLE;
     k_mutex_unlock(&update_mutex);
 
-	return 0;
+    return 0;
 }
 
-// static int cmd_set_command(const struct shell *sh, size_t argc, char **argv)
-// {
+static int cmd_set_command(const struct shell *sh, size_t argc, char **argv)
+{
+    const int arg_idx_channel = 1;
+    const int arg_idx_cmd = 2;
 
-// }
+    uint32_t channel;
+    uint32_t cmd;
 
-// static int cmd_request_telem(const struct shell *sh, size_t argc, char **argv)
-// {
+    channel = strtoul(argv[arg_idx_channel], NULL, 0);
+    cmd = strtoul(argv[arg_idx_cmd], NULL, 0);
+    cmd = CLAMP(cmd, 0, DSHOT_CMD_MAX);
+    if (!dshot_cmd_settings[cmd].enabled) {
+        shell_error(sh, "DShot command not enabled");
+        return -EINVAL;
+    }
 
-// }
+    k_mutex_lock(&update_mutex, K_FOREVER);
+    update_channel = channel;
+    update_command = cmd;
+    update_type = DSHOT_SHELL_UPDATE_COMMAND;
+    k_mutex_unlock(&update_mutex);
+
+    return 0;
+}
+
+static int cmd_request_telem(const struct shell *sh, size_t argc, char **argv)
+{
+    const int arg_idx_channel = 1;
+
+    int err;
+    uint32_t channel;
+
+    channel = strtoul(argv[arg_idx_channel], NULL, 0);
+    err = dshot_set_request_telem(dshot_dev, channel);
+    if (err) {
+        shell_error(sh, "Unable to request telemetry (%d)", err);
+        return err;
+    }
+
+    return 0;
+}
 
 // @todo telemetry
 
 SHELL_STATIC_SUBCMD_SET_CREATE(dshot_cmds,
-	SHELL_CMD_ARG(start, NULL, "<run>", cmd_start_thread, 2, 0),
-    SHELL_CMD_ARG(enable, NULL, "<device> <enabled>", cmd_set_enabled, 3, 0),
-    SHELL_CMD_ARG(type, NULL, "<device> <dshot_type>", cmd_set_type, 3, 0),
-    SHELL_CMD_ARG(mode, NULL, "<device> <dshot_mode>", cmd_set_mode, 3, 0),
-    SHELL_CMD_ARG(throttle, NULL, "<device> <channel> <throttle 0-100>", cmd_set_throttle, 4, 0),
-	SHELL_SUBCMD_SET_END
+    SHELL_CMD_ARG(set_enabled, NULL, "<enabled>", cmd_set_enabled, 2, 0),
+    SHELL_CMD_ARG(set_type, NULL, "<dshot_type>", cmd_set_type, 2, 0),
+    SHELL_CMD_ARG(set_mode, NULL, "<dshot_mode>", cmd_set_mode, 2, 0),
+    SHELL_CMD_ARG(set_throttle, NULL, "<channel> <throttle 0-100>", cmd_set_throttle, 3, 0),
+    SHELL_CMD_ARG(set_command, NULL, "<channel> <dshot_command>", cmd_set_command, 3, 0),
+    SHELL_CMD_ARG(req_telem, NULL, "<channel>", cmd_request_telem, 2, 0),
+    SHELL_SUBCMD_SET_END
 );
 
 SHELL_CMD_REGISTER(dshot, &dshot_cmds, "DShot shell commands", NULL);

@@ -619,8 +619,8 @@ static int dshot_stm32_set_command(const struct device *dev, uint32_t channel, e
         struct dshot_stm32_channel_data *ch_data = data->channels[channel - 1u];
         struct dshot_active_command new_cmd = {
             .command = command,
-            .repeat = command_settings[command].repeat,
-            .delay_ms = command_settings[command].delay_ms,
+            .repeat = dshot_cmd_settings[command].repeat,
+            .delay_ms = dshot_cmd_settings[command].delay_ms,
         };
         ch_data->active_cmd = new_cmd;
     }
