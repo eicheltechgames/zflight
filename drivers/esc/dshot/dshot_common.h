@@ -51,16 +51,6 @@ extern "C" {
 #define DSHOT_TIM_BUF_LEN       (DSHOT_PACKET_BITS + 2)
 #endif
 
-#define DSHOT_CMD_MAX   47
-
-struct dshot_command_settings {
-    uint8_t enabled;
-    uint8_t repeat;
-    uint16_t delay_ms;
-};
-
-extern const struct dshot_command_settings dshot_cmd_settings[DSHOT_CMD_MAX + 1];
-
 static inline uint16_t dshot_common_quantize_throttle(uint16_t raw_throttle)
 {
     return (((uint32_t)raw_throttle * DSHOT_PACKET_MAX_DATA)

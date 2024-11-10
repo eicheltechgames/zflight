@@ -1,0 +1,15 @@
+/*
+ * Copyright (c) 2021, 2023 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	chosen {
+		zflight,esc-manager = &esc_manager;
+	};
+};
+
+esc_manager: &dshots {
+	compatible = "esc-manager";
+};

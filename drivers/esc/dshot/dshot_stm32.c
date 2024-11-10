@@ -68,7 +68,7 @@ enum dshot_stm32_dir {
 };
 
 struct dshot_active_command {
-    enum dshot_command command;
+    int command;
     uint16_t repeat;
     uint16_t delay_ms;
 };
@@ -539,6 +539,10 @@ static int dshot_stm32_set_enabled(const struct device *dev, bool enabled)
     const struct dshot_stm32_config *cfg = dev->config;
     struct dshot_stm32_data *data = dev->data;
 
+    if (!enabled) {
+        LL_TIM_DisableCounter(cfg->timer);
+    }
+
     for (int ch_idx = 0; ch_idx < TIMER_MAX_CH; ++ch_idx) {
         const struct dshot_stm32_channel_config *ch_cfg =
             cfg->channels[ch_idx];
@@ -555,7 +559,7 @@ static int dshot_stm32_set_enabled(const struct device *dev, bool enabled)
     }
 
     data->enabled = enabled;
-    return 0;
+    return enabled;
 }
 
 static int dshot_stm32_set_packet(const struct device *dev, uint32_t channel, uint16_t payload)
@@ -592,13 +596,24 @@ static int dshot_stm32_set_packet(const struct device *dev, uint32_t channel, ui
 
 static int dshot_stm32_set_throttle(const struct device *dev, uint32_t channel, uint16_t throttle)
 {
-    static const struct dshot_active_command reset = { 0 };
+    static const struct dshot_active_command reset = { -ENODATA, 0, 0 };
+
+    const struct dshot_stm32_config *cfg = dev->config;
+    const struct dshot_stm32_channel_config *ch_cfg;
+    int err = get_channel_config(cfg, channel, &ch_cfg);
+    if (err) {
+        return err;
+    }
+
+    if (throttle <= DSHOT_CMD_MAX) {
+        LL_TIM_CC_DisableChannel(cfg->timer, ch_cfg->ll_channel);
+        return 0;
+    } else {
+        LL_TIM_CC_EnableChannel(cfg->timer, ch_cfg->ll_channel);
+    }
 
     throttle = dshot_common_quantize_throttle(throttle);
-    if (throttle <= DSHOT_CMD_MAX) {
-        throttle = 0;
-    }
-    int err = dshot_stm32_set_packet(dev, channel, throttle);
+    err = dshot_stm32_set_packet(dev, channel, throttle);
 
     if (!err) {
         // ch_data validated in dshot_stm32_set_packet
@@ -611,7 +626,16 @@ static int dshot_stm32_set_throttle(const struct device *dev, uint32_t channel, 
 
 static int dshot_stm32_set_command(const struct device *dev, uint32_t channel, enum dshot_command command)
 {
-    int err = dshot_stm32_set_packet(dev, channel, (uint16_t)command);
+    const struct dshot_stm32_config *cfg = dev->config;
+    const struct dshot_stm32_channel_config *ch_cfg;
+    int err = get_channel_config(cfg, channel, &ch_cfg);
+    if (err) {
+        return err;
+    }
+
+    LL_TIM_CC_EnableChannel(cfg->timer, ch_cfg->ll_channel);
+
+    err = dshot_stm32_set_packet(dev, channel, (uint16_t)command);
 
     if (!err) {
         // ch_data validated in dshot_stm32_set_packet
@@ -645,12 +669,13 @@ static int dshot_stm32_send(const struct device *dev)
 {
     const struct dshot_stm32_config *cfg = dev->config;
     struct dshot_stm32_data *data = dev->data;
+    int err;
 
     if (get_tim_busy(dev)) {
-        return -EBUSY;
+        return -EALREADY;
     }
 
-    dshot_stm32_set_direction_output(dev);
+    dshot_stm32_set_direction_output(dev); // @todo return an error
 
     uint32_t curr_timestamp = k_uptime_get_32();
     for (int ch_idx = 0; ch_idx < TIMER_MAX_CH; ++ch_idx) {
@@ -672,9 +697,7 @@ static int dshot_stm32_send(const struct device *dev)
             // disable the channel so other channels can still operate
             LL_TIM_CC_DisableChannel(cfg->timer, ch_cfg->ll_channel);
         } else {
-            // re-enable the channel if it was disabled for a command
-            ch_data->active_cmd.command = 0;
-            LL_TIM_CC_EnableChannel(cfg->timer, ch_cfg->ll_channel);
+            ch_data->active_cmd.command = -ENODATA;
         }
 
 #ifdef CONFIG_DSHOT_STM32_DMA_BURST
@@ -685,7 +708,10 @@ static int dshot_stm32_send(const struct device *dev)
 #if DSHOT_STM32_MANUAL_CACHE_COHERENCY_REQUIRED
             arch_dcache_flush_range((void *)&ch_data->tim_buf, DSHOT_STM32_DMA_TIM_BUF_SIZE);
 #endif
-            dma_start(dma->dev, dma->channel);
+            err = dma_start(dma->dev, dma->channel);
+            if (err) {
+                return err;
+            }
         }
     }
     data->last_send_timestamp = curr_timestamp;
@@ -696,7 +722,10 @@ static int dshot_stm32_send(const struct device *dev)
 #if DSHOT_STM32_MANUAL_CACHE_COHERENCY_REQUIRED
         arch_dcache_flush_range((void *)&data->burst_tim_buf, DSHOT_STM32_DMA_BURST_TIM_BUF_SIZE);
 #endif
-        dma_start(burst_dma->dev, burst_dma->channel);
+        err = dma_start(dma->dev, dma->channel);
+        if (err) {
+            return err;
+        }
     }
 #endif
 
@@ -804,7 +833,9 @@ static void dshot_stm32_dma_cb(const struct device *dma_dev, void *user_data,
     const struct device *dshot_dev = user_data;
     const struct dshot_stm32_config *cfg = dshot_dev->config;
 
-    LL_TIM_DisableCounter(cfg->timer);
+    // @note it is acceptable to disable the timer for any channel
+    // because the last two tim buf indexes are 0.
+    // @see dshot_common_dshot_common_load_dshot_buffer.
 
 #ifdef CONFIG_DSHOT_BIDIR
     struct dshot_stm32_data *data = dshot_dev->data;
@@ -814,11 +845,15 @@ static void dshot_stm32_dma_cb(const struct device *dma_dev, void *user_data,
             dma_start(dma_dev, channel);
             LL_TIM_SetCounter(cfg->timer, 0);
         } else {
+            LL_TIM_DisableCounter(cfg->timer);
             dshot_stm32_set_direction_output(dshot_dev);
         }
     } else {
+        LL_TIM_DisableCounter(cfg->timer);
         dshot_stm32_set_direction_output(dshot_dev);
     }
+#else
+    LL_TIM_DisableCounter(cfg->timer);
 #endif
 }
 
@@ -1035,7 +1070,7 @@ static int dshot_stm32_init(const struct device *dev)
     {                                                                               \
         DSHOT_CH_DATA_BIDIR                                                         \
         .pending_telem_req = false,                                                 \
-        .active_cmd = { 0, 0, 0 },                                                  \
+        .active_cmd = { -ENODATA, 0, 0 },                                                 \
         .dma = DSHOT_DMA_CHANNEL_INIT(index, GET_DMA_CH(DT_PROP(node, channel))),   \
         .tim_buf = &dshot_tim_buf_##index[DT_NODE_CHILD_IDX(node)][0],              \
     },                                                                              \

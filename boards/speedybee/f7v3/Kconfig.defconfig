@@ -9,12 +9,17 @@ config FC_HAS_DSHOT_BIDIR
     bool
     default y
     depends on HAS_DSHOT_BIDIR
-    depends on APP_NUM_MOTORS <= 4
+    depends on PLATFORM_NUM_MOTORS <= 4
 
 config FC_DSHOT_DMA_BURST
     bool
     default y
     depends on !DSHOT_BIDIR
     imply DSHOT_STM32_DMA_BURST
+
+config FC_HAS_DSHOT_TELEM
+    bool
+    default y
+    depends on DSHOT
 
 endif # BOARD_SPEEDYBEE_F7V3

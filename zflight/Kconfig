@@ -1,7 +1,7 @@
 # Copyright (c) 2024 Arthur Eichelberger
 # SPDX-License-Identifier: Apache-2.0
 
-menu "Zephyr"
+menu "zflight"
 source "Kconfig.zephyr"
 endmenu
 
@@ -9,44 +9,19 @@ module = ZFLIGHT
 module-str = ZFLIGHT
 source "subsys/logging/Kconfig.template.log_config"
 
-config APP_NUM_MOTORS
-	int "Configure the number of motors on the platform"
+config ZFLIGHT_NUM_MOTORS
+	int
     default $(NUM_MOTORS)
 	help
 	  Configure the number of motors on the platform.
 
-choice APP_ESC_TYPE
-    bool "ESC type"
-    default APP_USE_ESC_$(ESC_TYPE)
-    help
-      Select the type of ESC used on the aircraft
-
-config APP_USE_ESC_DSHOT
-    bool "DShot ESC"
-    select DSHOT
-
-config APP_USE_ESC_PPM
-    bool "PPM ESC"
-
-endchoice
-
-config APP_USE_DSHOT_BIDIR
-    bool "Use Bidirectional DShot"
+config ZFLIGHT_DSHOT
+    bool
     default y
-    depends on APP_USE_ESC_DSHOT && FC_HAS_DSHOT_BIDIR
+    depends on DSHOT
+
+config ZFLIGHT_DSHOT_BIDIR
+    bool "Configure zflight to use Bidirectional DShot"
+    default y
+    depends on DSHOT && FC_HAS_DSHOT_BIDIR
     imply DSHOT_BIDIR
-
-choice APP_RADIO_RX_TYPE
-    bool "ESC type"
-    default APP_USE_RADIO_RX_$(RX_TYPE)
-    help
-      Select the type of ESC used on the aircraft
-
-config APP_USE_RADIO_RX_CRSF
-    bool "DShot Radio Rx"
-    select DSHOT
-
-config APP_USE_RADIO_RX_PPM
-    bool "PPM Radio Rx"
-
-endchoice

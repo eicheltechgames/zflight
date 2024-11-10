@@ -32,9 +32,25 @@ extern "C" {
  */
 
 enum esc_type {
+    ESC_TYPE_PPM,
     ESC_TYPE_DSHOT,
     NUM_ESC_TYPE
 };
+
+struct esc_dt_spec {
+    const struct device *dev;
+    uint8_t channel;
+};
+
+#define ESC_DT_SPEC_GET(node)                   \
+    {                                           \
+        .dev = DEVICE_DT_GET(DT_PARENT(node)),  \
+        .channel = DT_PROP(node, channel)       \
+    }                                           \
+
+#define ESC_DT_SPEC_HAS_STATUS_OKAY(node)                   \
+    (DT_NODE_HAS_STATUS(node, okay) &&                      \
+     DT_NODE_HAS_STATUS(DT_PARENT(DT_PARENT(node)), okay))  \
 
 /** @cond INTERNAL_HIDDEN */
 /**
@@ -59,10 +75,11 @@ typedef int (*esc_set_enabled_t)(const struct device *dev, bool enabled);
  * @brief ESC driver API call to set the throttle for a channel.
  * @see esc_set_throttle_direct() for argument description.
  */
-typedef int (*esc_set_throttle_t)(const struct device *dev, uint32_t channel, uint16_t throttle);
+typedef int (*esc_set_throttle_t)(const struct device *dev,
+    uint32_t channel, uint16_t throttle);
 
 /**
- * @brief ESC driver API call to send the throttle commands.
+ * @brief ESC driver API call to send commands to the ESC(s).
  * @see esc_send() for argument description.
  */
 typedef int (*esc_send_t)(const struct device *dev);
@@ -78,8 +95,11 @@ __subsystem struct esc_driver_api {
 /** @endcond */
 
 /**
- * @brief ESC driver API call to get the type of ESC.
- * @see esc_get_type() for argument description.
+ * @brief Get the ESC driver type.
+ *
+ * @param[in] dev ESC device instance.
+ *
+ * @return The ESC type as indicated in esc_type enum.
  */
 static inline enum esc_type esc_get_type(const struct device *dev)
 {
@@ -89,8 +109,14 @@ static inline enum esc_type esc_get_type(const struct device *dev)
 }
 
 /**
- * @brief ESC driver API call to get if the device is enabled.
- * @see esc_get_enabled() for argument description.
+ * @brief Get if the ESC device is enabled.
+ *
+ * @see esc_set_enabled() for the characteristics of an
+ * enabled/disabled device.
+ *
+ * @param[in] dev ESC device instance.
+ *
+ * @return True if @p dev is enabled, otherwise false.
  */
 static inline bool esc_get_enabled(const struct device *dev)
 {
@@ -100,8 +126,18 @@ static inline bool esc_get_enabled(const struct device *dev)
 }
 
 /**
- * @brief ESC driver API call to set the device enabled.
- * @see esc_set_enabled() for argument description.
+ * @brief Set the ESC device enabled/disabled. The ESC driver will only
+ * send commands to the ESC if it is enabled.
+ *
+ * @note Some ESC specific device APIs can only be called when the device
+ * is disabled.
+ *
+ * @param[in] dev ESC device instance.
+ * @param enabled Input to enable/disable @p dev.
+ *
+ * @retval 1 If device is enabled.
+ * @retval 0 If device is disabled.
+ * @retval -errno Negative errno code on failure.
  */
 static inline int esc_set_enabled(const struct device *dev, bool enabled)
 {
@@ -111,10 +147,29 @@ static inline int esc_set_enabled(const struct device *dev, bool enabled)
 }
 
 /**
- * @brief ESC driver API call to set the throttle for a channel.
- * @see esc_set_throttle_direct() for argument description.
+ * @brief Set the throttle for a single channel on the ESC device which will
+ * be sent to the ESC upon the next call to esc_send(). Setting the throttle
+ * to 0 will cause the device to stop sending commands for this channel.
+ *
+ * @see esc_send()
+ *
+ * @note While setting the throttle to 0 will stop the ESC device from sending
+ * commands from this channel, the device remains enabled and will continue
+ * sending commands from the other channels. Upon setting a non-zero ESC
+ * throttle for this channel, the device will automatically resume sending its
+ * commands.
+ *
+ * @param[in] dev ESC device instance.
+ * @param channel DShot device channel.
+ * @param throttle
+ *
+ * @retval 0 If successful.
+ * @retval -EINVAL If the channel is inavlid.
+ * @retval -EBUSY If the the device is currently sending commands.
+ * @retval -errno Negative errno code on failure.
  */
-static inline int esc_set_throttle(const struct device *dev, uint32_t channel, uint16_t throttle)
+static inline int esc_set_throttle(const struct device *dev,
+                                   uint32_t channel, uint16_t throttle)
 {
     const struct esc_driver_api *api = dev->api;
 
@@ -122,8 +177,13 @@ static inline int esc_set_throttle(const struct device *dev, uint32_t channel, u
 }
 
 /**
- * @brief ESC driver API call to send the throttle commands.
- * @see esc_send() for argument description.
+ * @brief Send the throttle commands to the ESCs on all channels.
+ *
+ * @param[in] dev ESC device instance.
+ *
+ * @retval 0 If successful.
+ * @retval -ALREADY If the the device is currently sending commands.
+ * @retval -errno Negative errno code on failure.
  */
 static inline int esc_send(const struct device *dev)
 {

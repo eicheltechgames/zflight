@@ -1,0 +1,17 @@
+# Copyright (c) 2024, Arthur Eichelberger
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  TODO
+
+compatible: "esc-manager"
+
+child-binding:
+  description: Motor child node
+  properties:
+    esc:
+      type: phandle
+      required: true
+    motor-index:
+      type: int
+      required: true

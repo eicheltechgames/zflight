@@ -69,6 +69,16 @@ enum dshot_command {
 #endif /* CONFIG_DSHOT_EDT */
 #endif /* CONFIG_DSHOT_BIDIR */
 };
+#define DSHOT_CMD_MAX   47
+#define NUM_DSHOT_CMD   (DSHOT_CMD_MAX + 1)
+
+struct dshot_command_settings {
+    uint8_t enabled;
+    uint8_t repeat;
+    uint16_t delay_ms;
+};
+
+extern const struct dshot_command_settings dshot_cmd_settings[NUM_DSHOT_CMD];
 
 enum dshot_telem_type {
     DSHOT_TELEM_ERPM = 0x0,
@@ -226,6 +236,7 @@ static inline int dshot_send(const struct device *dev)
     return esc_send(dev);
 }
 
+// return -ENODATA if none in progress
 static inline int dshot_command_in_progress(const struct device *dev, uint32_t channel)
 {
     const struct dshot_driver_api *dshot_api = dev->api;

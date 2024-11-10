@@ -7,7 +7,7 @@
 #include "dshot_common.h"
 #include <zephyr/sys/crc.h>
 
-const struct dshot_command_settings dshot_cmd_settings[DSHOT_CMD_MAX + 1] = {
+const struct dshot_command_settings dshot_cmd_settings[NUM_DSHOT_CMD] = {
     [DSHOT_CMD_MOTOR_STOP] = { 1, 1, 0 },
     [DSHOT_CMD_BEEP1] = { 1, 1, 260 },
     [DSHOT_CMD_BEEP2] = { 1, 1, 260 },

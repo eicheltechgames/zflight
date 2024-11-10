@@ -95,21 +95,13 @@ zephyr_udc0: &usbotg_fs {
 		#esc-cells = <1>;
 		m1_dshot: ch1 {
 			channel = <1>;
-			status = "okay";
+			status = "disabled";
 		};
 		m2_dshot: ch2 {
 			channel = <2>;
-			status = "okay";
-		};
-		ch3 {
-			channel = <3>;
 			status = "disabled";
 		};
-		ch4 {
-			channel = <4>;
-			status = "disabled";
-		};
-		status = "okay";
+		status = "disabled";
 	};
 };
 
@@ -129,21 +121,21 @@ zephyr_udc0: &usbotg_fs {
 		#esc-cells = <1>;
 		m3_dshot: ch1 {
 			channel = <1>;
-			status = "okay";
+			status = "disabled";
 		};
 		m6_dshot: ch2 {
 			channel = <2>;
-			status = "okay";
+			status = "disabled";
 		};
 		m7_dshot: ch3 {
 			channel = <3>;
-			status = "okay";
+			status = "disabled";
 		};
 		m8_dshot: ch4 {
 			channel = <4>;
-			status = "okay";
+			status = "disabled";
 		};
-		status = "okay";
+		status = "disabled";
 	};
 };
 
@@ -161,21 +153,13 @@ zephyr_udc0: &usbotg_fs {
 		#esc-cells = <1>;
 		m4_dshot: ch1 {
 			channel = <1>;
-			status = "okay";
+			status = "disabled";
 		};
 		m5_dshot: ch2 {
 			channel = <2>;
-			status = "okay";
-		};
-		ch3 {
-			channel = <3>;
 			status = "disabled";
 		};
-		ch4 {
-			channel = <4>;
-			status = "disabled";
-		};
-		status = "okay";
+		status = "disabled";
 	};
 };
 
