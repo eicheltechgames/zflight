@@ -3,7 +3,7 @@
 
 manifest:
   self:
-    path: app
+    path: zflight
 
   remotes:
     - name: zephyrproject-rtos
