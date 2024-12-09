@@ -1,0 +1,18 @@
+/*
+ * Copyright (c) 2021, 2023 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	chosen {
+		zephyr,console = &usb_terminal;
+		zephyr,shell-uart = &usb_terminal;
+	};
+};
+
+&zflight_terminal {
+	usb_terminal: usb_terminal {
+		compatible = "zephyr,cdc-acm-uart";
+	};
+};

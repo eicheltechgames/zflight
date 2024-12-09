@@ -1,0 +1,4 @@
+name: usb-terminal
+append:
+  EXTRA_CONF_FILE: usb-terminal.conf
+  EXTRA_DTC_OVERLAY_FILE: usb-terminal.overlay

@@ -4,72 +4,136 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <zephyr/device.h>
-#include <zephyr/drivers/uart.h>
+#include <zflight/terminal.h>
+#include <zflight/app.h>
+
 #include <zephyr/kernel.h>
-
-#include <zephyr/usb/usb_device.h>
+#include <zephyr/device.h>
 #include <zephyr/usb/usbd.h>
-#include <zephyr/logging/log.h>
-// LOG_MODULE_REGISTER(cdc_acm_echo, LOG_LEVEL_INF);
+#include <zephyr/drivers/uart.h>
+#include <zephyr/shell/shell.h>
+#include <zephyr/shell/shell_backend.h>
+#include <zephyr/sys/util.h>
 
-// const struct device *const uart_dev = DEVICE_DT_GET_ONE(zephyr_cdc_acm_uart);
+const struct device *const uart_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
 
-// int init_terminal(void)
-// {
-// 	int ret;
+USBD_DEVICE_DEFINE(usbd_dev,
+                   DEVICE_DT_GET(DT_NODELABEL(zflight_terminal)),
+                   CONFIG_USB_DEVICE_VID, CONFIG_USB_DEVICE_PID);
 
-// 	if (!device_is_ready(uart_dev)) {
-// 		LOG_ERR("CDC ACM device not ready");
-// 		return 0;
-// 	}
+USBD_DESC_LANG_DEFINE(usbd_lang);
+USBD_DESC_MANUFACTURER_DEFINE(usbd_mfr, CONFIG_USB_DEVICE_MANUFACTURER);
+USBD_DESC_PRODUCT_DEFINE(usbd_product, "zflight");
+USBD_DESC_SERIAL_NUMBER_DEFINE(usbd_sn);
 
-// #if defined(CONFIG_USB_DEVICE_STACK_NEXT)
-// 		ret = enable_usb_device_next();
-// #else
-// 		ret = usb_enable(NULL); // @todo set this and don't use below
-// #endif
+USBD_CONFIGURATION_DEFINE(usbd_fs_config,
+                          USB_SCD_SELF_POWERED,
+                          125); // @todo make configurable per flight controller
 
-// 	if (ret != 0) {
-// 		LOG_ERR("Failed to enable USB");
-// 		return 0;
-// 	}
+int zflight_terminal_start()
+{
+    return shell_start(shell_backend_get(0));
+}
 
-// 	LOG_INF("Wait for DTR");
+int zflight_terminal_stop()
+{
+    return shell_stop(shell_backend_get(0));
+}
 
-// #if defined(CONFIG_USB_DEVICE_STACK_NEXT)
-// 	k_sem_take(&dtr_sem, K_FOREVER);
-// #else
-// 	while (true) {
-// 		uint32_t dtr = 0U;
+static void usbd_msg_cb(struct usbd_context *const ctx,
+                          const struct usbd_msg *msg)
+{
+    int err = 0;
 
-// 		uart_line_ctrl_get(uart_dev, UART_LINE_CTRL_DTR, &dtr);
-// 		if (dtr) {
-// 			break;
-// 		} else {
-// 			/* Give CPU resources to low priority threads. */
-// 			k_sleep(K_MSEC(100));
-// 		}
-// 	}
-// #endif
+    if (usbd_can_detect_vbus(ctx)) {
+        if (msg->type == USBD_MSG_VBUS_READY) {
+            err = usbd_enable(ctx);
+            if (err) {
+                // @todo error
+            }
+        }
 
-// 	LOG_INF("DTR set");
+        if (msg->type == USBD_MSG_VBUS_REMOVED) {
+            err = usbd_disable(ctx);
+            if (err) {
+                // @todo error
+            }
+        }
+    }
+    
+    if (msg->type == USBD_MSG_CDC_ACM_CONTROL_LINE_STATE) {
+        uint32_t dtr = 0U;
+        err = uart_line_ctrl_get(msg->dev, UART_LINE_CTRL_DTR, &dtr);
+        if (err) {
+            // @todo error
+            return;
+        }
 
-// 	/* They are optional, we use them to test the interrupt endpoint */
-// 	ret = uart_line_ctrl_set(uart_dev, UART_LINE_CTRL_DCD, 1);
-// 	if (ret) {
-// 		LOG_WRN("Failed to set DCD, ret code %d", ret);
-// 	}
+        if (dtr) {
+            zflight_app_notify_event(
+                ZFLIGHT_APP_EVENT_TERMINAL, ZFLIGHT_TERMINAL_CONNECTED);
+        } else {
+            (void)zflight_terminal_stop();
+            zflight_app_notify_event(
+                ZFLIGHT_APP_EVENT_TERMINAL, ZFLIGHT_TERMINAL_DISCONNECTED);
+        }
+    }
+}
 
-// 	ret = uart_line_ctrl_set(uart_dev, UART_LINE_CTRL_DSR, 1);
-// 	if (ret) {
-// 		LOG_WRN("Failed to set DSR, ret code %d", ret);
-// 	}
+int zflight_terminal_init()
+{
+    int err;
 
-// 	/* Wait 100ms for the host to do all settings */
-// 	k_msleep(100);
+    if (!device_is_ready(uart_dev)) {
+        return -EIO;
+    }
 
-// 	return 0;
-// }
+    err = usbd_add_descriptor(&usbd_dev, &usbd_lang);
+    if (err) {
+        return err;
+    }
+
+    err = usbd_add_descriptor(&usbd_dev, &usbd_mfr);
+    if (err) {
+        return err;
+    }
+
+    err = usbd_add_descriptor(&usbd_dev, &usbd_product);
+    if (err) {
+        return err;
+    }
+
+    err = usbd_add_descriptor(&usbd_dev, &usbd_sn);
+    if (err) {
+        return err;
+    }
+
+    err = usbd_add_configuration(&usbd_dev, USBD_SPEED_FS, &usbd_fs_config);
+    if (err) {
+        return err;
+    }
+
+    err = usbd_register_all_classes(&usbd_dev, USBD_SPEED_FS, 1);
+    if (err) {
+        return err;
+    }
+
+    err = usbd_msg_register_cb(&usbd_dev, usbd_msg_cb);
+    if (err) {
+        return err;
+    }
+
+    err = usbd_init(&usbd_dev);
+    if (err) {
+        return err;
+    }
+
+    if (!usbd_can_detect_vbus(&usbd_dev)) {
+        err = usbd_enable(&usbd_dev);
+        if (err) {
+            return err;
+        }
+    }
+
+    return 0;
+}

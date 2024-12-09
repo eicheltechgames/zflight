@@ -14,14 +14,3 @@ config ZFLIGHT_NUM_MOTORS
     default $(NUM_MOTORS)
 	help
 	  Configure the number of motors on the platform.
-
-config ZFLIGHT_DSHOT
-    bool
-    default y
-    depends on DSHOT
-
-config ZFLIGHT_DSHOT_BIDIR
-    bool "Configure zflight to use Bidirectional DShot"
-    default y
-    depends on DSHOT && FC_HAS_DSHOT_BIDIR
-    imply DSHOT_BIDIR

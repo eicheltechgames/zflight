@@ -16,15 +16,24 @@ if (NOT DEFINED ESC_TYPE)
 endif()
 
 # Set important directories
-set(WORKSPACE_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
-set(ENV{ZEPHYR_BASE} ${WORKSPACE_DIR}/zephyr)
-set(ZEPHYR_SDK_INSTALL_DIR ${WORKSPACE_DIR}/zephyr-sdk)
-set(APP_DIR ${WORKSPACE_DIR}/app)
-set(ZFLIGHT_DIR ${APP_DIR}/zflight)
+set(APP_DIR ${CMAKE_CURRENT_LIST_DIR})
+set(ZEPHYR_WORKSPACE ${APP_DIR}/../..)
+set(ENV{ZEPHYR_BASE} ${ZEPHYR_WORKSPACE}/zephyr)
+set(ENV{ZEPHYR_SDK_INSTALL_DIR} ${ZEPHYR_WORKSPACE}/zephyr-sdk)
+set(ZFLIGHT_DIR ${ZEPHYR_WORKSPACE}/zflight)
+
+# Set the CMake build type from Zephur
+if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+    set(CMAKE_C_FLAGS_DEBUG "-Og")
+    list(APPEND EXTRA_CONF_FILE "prj_debug.conf") 
+endif()
 
 # Set snippets from inputs
 set(ESC_TYPE_SNIPPET esc-${ESC_TYPE})
-list(APPEND SNIPPET ${ESC_TYPE_SNIPPET})
+list(APPEND SNIPPET 
+    usb-terminal
+#    ${ESC_TYPE_SNIPPET}
+)
 
 # Configure Zephyr
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})

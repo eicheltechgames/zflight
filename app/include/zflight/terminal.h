@@ -17,7 +17,16 @@
 extern "C" {
 #endif
 
-int init_terminal(void);
+enum zflight_terminal_events {
+    ZFLIGHT_TERMINAL_DISCONNECTED = 0,
+    ZFLIGHT_TERMINAL_CONNECTED
+};
+
+int zflight_terminal_start(void);
+
+int zflight_terminal_stop(void);
+
+int zflight_terminal_init(void);
 
 #ifdef __cplusplus
 }

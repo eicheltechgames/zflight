@@ -38,6 +38,13 @@
     status = "okay";
 };
 
+/delete-node/ &zephyr_udc0;
+zflight_terminal: &usbotg_fs {
+	pinctrl-0 = <&usb_otg_fs_dm_pa11 &usb_otg_fs_dp_pa12 &usb_otg_fs_id_pa10 &usb_otg_fs_vbus_pa9>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
 &timers2 {
 	status = "okay";
 	dshot1: dshot {
