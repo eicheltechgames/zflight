@@ -1,0 +1,39 @@
+# TBS Crossfire RC Link configuration
+
+# Copyright (c) 2024 Arthur Eichelberger
+# SPDX-License-Identifier: Apache-2.0
+
+config RC_LINK_CRSF
+	bool "TBS Crossfire RC Link serial driver"
+	default y
+	depends on DT_HAS_TBS_CRSF_ENABLED
+	depends on SERIAL
+	depends on UART_INTERRUPT_DRIVEN
+	depends on UART_USE_RUNTIME_CONFIGURE
+	depends on CRC
+	select CACHE_MANAGEMENT if CPU_HAS_DCACHE
+	select RC_LINK_HAS_DOWNLINK_STATUS
+	select RC_LINK_HAS_TELEMETRY
+	select RC_LINK_STATUS_HAS_LINK_QUALITY
+	select RC_LINK_STATUS_HAS_RSSI_DBM
+	select RC_LINK_STATUS_HAS_SNR
+	select RC_LINK_STATUS_HAS_POWER
+	select RC_LINK_TELEM_HAS_VBATT
+	select RC_LINK_TELEM_HAS_CURRENT
+	select RC_LINK_TELEM_HAS_BATT_CAPACITY
+	select RC_LINK_TELEM_HAS_BATT_PERCENT
+	imply RC_LINK_TELEMETRY
+	imply RC_LINK_DOWNLINK_STATUS
+	help
+	  This option enables the TBS Crossfire RC Link.
+	  Say y if you wish to use TBS Crossfire RC Link.
+
+if RC_LINK_CRSF
+
+config RC_LINK_CRSF_AUTO_DETECT_ELRS
+	bool "Should the driver automatically detect Express LRS RC Link"
+	default y
+	help
+	  Should the driver automatically detect Express LRS RC Link
+
+endif

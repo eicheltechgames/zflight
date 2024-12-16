@@ -1,0 +1,58 @@
+# Copyright 2024 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: Team Black Sheep (TBS) Crossfire RC Link Module
+
+compatible: "tbs,crsf"
+
+include:
+  - uart-device.yaml
+
+properties:
+  addr:
+    type: int
+    description: |
+      CRSF device address
+    default: 0xC8
+    enum: [0x10, 0x12, 0x80, 0xC0, 0xC4, 0xC8, 0xCC, 0xEA, 0xEC, 0xEE, 0xEF]
+
+  dev_name:
+    type: string
+    description: |
+      Device name
+    default: "Unknown"
+
+  serial_num:
+    type: int
+    description: |
+      Device Serial Number
+    default: 0
+
+  hw_ver:
+    type: int
+    description: |
+      CRSF Hardware Version
+    default: 0
+
+  sw_ver:
+    type: int
+    description: |
+      CRSF Software Version
+    default: 0
+
+  field_cnt:
+    type: int
+    description: |
+      Number of fields available to protocol
+    default: 0
+
+  param_version:
+    type: int
+    description: |
+      CRSF parameter field version
+    default: 0
+
+  elrs:
+    type: boolean
+    description: |
+      CRSF parameter field version

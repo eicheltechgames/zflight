@@ -1,0 +1,103 @@
+# Copyright (c) 2024 Arthur Eichelberger
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig RC_LINK
+	bool "Radio Controller Link drivers"
+	select EXPERIMENTAL
+	help
+	  Enable RC Link drivers and configuration.
+
+if RC_LINK
+
+config RC_LINK_HAS_DOWNLINK_STATUS
+	bool
+	help
+	  This is an option to be enabled by indvidual RC Link drivers
+	  to signal that the driver supports a downlink status
+
+config RC_LINK_HAS_TELEMETRY
+	bool
+	help
+	  This is an option to be enabled by indvidual RC Link drivers
+	  to signal that the driver supports telemetry
+
+config RC_LINK_STATUS_HAS_LINK_QUALITY
+	bool
+	help
+	  This is an option to be enabled by indvidual RC Link drivers
+	  to signal that the driver supports link quality status
+
+config RC_LINK_STATUS_HAS_RSSI_DBM
+	bool
+	help
+	  This is an option to be enabled by indvidual RC Link drivers
+	  to signal that the driver supports RSSI in dBm link status
+
+config RC_LINK_STATUS_HAS_SNR
+	bool
+	help
+	  This is an option to be enabled by indvidual RC Link drivers
+	  to signal that the driver supports SNR link status
+
+config RC_LINK_STATUS_HAS_POWER
+	bool
+	help
+	  This is an option to be enabled by indvidual RC Link drivers
+	  to signal that the driver supports link power status
+
+config RC_LINK_TELEM_HAS_VBATT
+	bool
+	help
+	  This is an option to be enabled by indvidual RC Link drivers
+	  to signal that the driver supports battery voltage telemetry
+
+config RC_LINK_TELEM_HAS_CURRENT
+	bool
+	help
+	  This is an option to be enabled by indvidual RC Link drivers
+	  to signal that the driver supports battery current telemetry
+
+config RC_LINK_TELEM_HAS_BATT_CAPACITY
+	bool
+	help
+	  This is an option to be enabled by indvidual RC Link drivers
+	  to signal that the driver supports battery capacity telemetry
+
+config RC_LINK_TELEM_HAS_BATT_PERCENT
+	bool
+	help
+	  This is an option to be enabled by indvidual RC Link drivers
+	  to signal that the driver supports battery percent telemetry
+
+module = RC_LINK
+module-str = rc_link
+source "subsys/logging/Kconfig.template.log_config"
+
+config RC_LINK_INIT_PRIORITY
+	int "RC Link init priority"
+	default 80
+	range 0 99
+	help
+	  RC link device initialization priority.
+
+config RC_LINK_SHELL
+	bool "RC Link shell"
+	depends on SHELL
+	help
+	  Enable the RC_LINK related shell commands.
+
+config RC_LINK_DOWNLINK_STATUS
+	bool "RC Link data received callback"
+	depends on RC_LINK_HAS_DOWNLINK_STATUS
+	help
+	  This option enables RC Link Downlink Status
+
+config RC_LINK_TELEMETRY
+	bool "RC Link data received callback"
+	depends on RC_LINK_HAS_TELEMETRY
+	help
+	  This option enables RC Link Telemetry
+
+rsource "Kconfig.crsf"
+
+endif

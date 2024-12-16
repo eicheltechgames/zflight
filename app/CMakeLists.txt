@@ -14,6 +14,9 @@ endif()
 if (NOT DEFINED ESC_TYPE)
     message(FATAL_ERROR "ESC_TYPE not set")
 endif()
+if (NOT DEFINED RX_TYPE)
+    message(FATAL_ERROR "RX_TYPE not set")
+endif()
 
 # Set important directories
 set(APP_DIR ${CMAKE_CURRENT_LIST_DIR})
@@ -29,10 +32,12 @@ if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
 endif()
 
 # Set snippets from inputs
-set(ESC_TYPE_SNIPPET esc-${ESC_TYPE})
+set(ESC_SNIPPET esc-${ESC_TYPE})
+set(RX_SNIPPET rx-${RX_TYPE})
 list(APPEND SNIPPET 
     usb-terminal
-#    ${ESC_TYPE_SNIPPET}
+#    ${ESC_SNIPPET}
+    ${RX_SNIPPET}
 )
 
 # Configure Zephyr

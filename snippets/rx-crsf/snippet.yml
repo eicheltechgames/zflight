@@ -1,0 +1,4 @@
+name: rx-crsf
+append:
+  EXTRA_CONF_FILE: rx-crsf.conf
+  EXTRA_DTC_OVERLAY_FILE: rx-crsf.overlay

@@ -3,4 +3,5 @@
 
 menu "Drivers"
 rsource "esc/Kconfig"
+rsource "rc_link/Kconfig"
 endmenu

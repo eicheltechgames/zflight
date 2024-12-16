@@ -58,7 +58,7 @@ LOG_MODULE_REGISTER(dshot_stm32, CONFIG_DSHOT_LOG_LEVEL);
 
 #ifndef CONFIG_DCACHE
 // override for interoperability
-#define CONFIG_DCACHE_LINE_SIZE 32
+#define CONFIG_DCACHE_LINE_SIZE 4
 #endif
 
 enum dshot_stm32_dir {
